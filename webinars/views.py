@@ -183,22 +183,22 @@ def create_zoom_webinar(request, pk):
         from .zoom_service import ZoomService
         zoom_service = ZoomService()
         
-        # Create the Zoom meeting
-        meeting_data = zoom_service.create_meeting(webinar_date)
+        # Create the Zoom webinar
+        webinar_data = zoom_service.create_webinar(webinar_date)
         
-        # Save the meeting ID to the webinar date
-        webinar_date.zoom_meeting_id = meeting_data['meeting_id']
+        # Save the webinar ID to the webinar date
+        webinar_date.zoom_meeting_id = webinar_data['webinar_id']
         webinar_date.save()
         
         messages.success(
             request, 
-            f'Zoom meeting created successfully! Meeting ID: {meeting_data["meeting_id"]}'
+            f'Zoom webinar created successfully! Webinar ID: {webinar_data["webinar_id"]}'
         )
         
     except Exception as e:
         messages.error(
             request, 
-            f'Failed to create Zoom meeting: {str(e)}. Please check your Zoom settings.'
+            f'Failed to create Zoom webinar: {str(e)}. Please check your Zoom settings.'
         )
     
     return redirect('webinar_date_detail', pk=pk)

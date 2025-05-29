@@ -22,9 +22,12 @@
         <h3>{{ webinar_date.date_time|date:"F d, Y - H:i" }}</h3>
         <p>
             {% if webinar_date.zoom_meeting_id %}
-            <strong>Zoom Meeting ID:</strong> {{ webinar_date.zoom_meeting_id }}<br>
+            <strong>Zoom Webinar ID:</strong> 
+            <a href="https://www.zoom.us/webinar/{{ webinar_date.zoom_meeting_id }}" target="_blank" rel="noopener noreferrer">
+                {{ webinar_date.zoom_meeting_id }} <i class="bi bi-external-link"></i>
+            </a><br>
             {% else %}
-            <strong>Zoom Meeting ID:</strong> <span class="text-muted">Not set</span><br>
+            <strong>Zoom Webinar ID:</strong> <span class="text-muted">Not set</span><br>
             {% endif %}
             <strong>Direct Attendees:</strong> {{ webinar_date.attendee_count }}<br>
             <strong>Total Attendees (including bundles):</strong> {{ webinar_date.total_attendee_count }}<br>

@@ -1,0 +1,74 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}Salesforce Settings - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'settings_dashboard' %}">Settings</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Salesforce Settings</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1><i class="bi bi-cloud"></i> Salesforce Integration Settings</h1>
+        <p class="text-muted">Configure your Salesforce API credentials for future integrations with webinar attendee data.</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{% url 'settings_dashboard' %}" class="btn btn-outline-secondary">Back to Settings</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Salesforce API Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% bootstrap_form form %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Setup Instructions</h6>
+            </div>
+            <div class="card-body">
+                <ol class="small">
+                    <li>Log into your Salesforce org</li>
+                    <li>Go to Setup → Users → Users</li>
+                    <li>Click on your user profile</li>
+                    <li>Click "Reset My Security Token" to get your security token</li>
+                    <li>Check your email for the security token</li>
+                    <li>For subdomain, use the part before .salesforce.com in your org URL</li>
+                </ol>
+                
+                <div class="alert alert-info small mt-3">
+                    <strong>Example:</strong><br>
+                    If your Salesforce URL is <code>mycompany.salesforce.com</code>, your subdomain is <code>mycompany</code>
+                </div>
+                
+                <div class="alert alert-warning small mt-3">
+                    <strong>Note:</strong> These settings are prepared for future Salesforce integrations. No active integration is currently implemented.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -100,21 +100,39 @@ The application includes Zoom API integration for automatically creating meeting
 ### Configuration
 - Access Settings -> Zoom Settings to configure API credentials
 - Required: Client ID, Client Secret, Account ID (from Zoom Server-to-Server OAuth App)
-- Optional: Webinar Template ID for consistent meeting settings
+- Optional: Webinar Template ID for consistent webinar settings
 
 ### Features
-- Automatic Zoom meeting creation for webinar dates
+- Automatic Zoom webinar creation for webinar dates
 - Test connection functionality to verify API credentials
 - Integration with existing "Create Zoom" buttons in webinar management
 
 ### Setup Requirements
 1. Create a Zoom Server-to-Server OAuth App at https://marketplace.zoom.us/
-2. Add required scopes: `meeting:write`
+2. Add required scopes: `webinar:write` and `user:read`
 3. Configure credentials in the Settings -> Zoom Settings page
 4. Test connection to verify setup
+
+## Salesforce Integration
+The application includes configuration for future Salesforce API integration:
+
+### Configuration
+- Access Settings -> Salesforce Settings to configure API credentials
+- Required: Subdomain, Username, Password, Security Token
+
+### Setup Requirements
+1. Log into your Salesforce org
+2. Go to Setup → Users → Users and click on your user profile
+3. Click "Reset My Security Token" to get your security token
+4. Check your email for the security token
+5. For subdomain, use the part before .salesforce.com in your org URL
+6. Configure credentials in the Settings -> Salesforce Settings page
+
+### Note
+These settings prepare the system for future Salesforce integrations with webinar attendee data. No active integration is currently implemented.
 
 ## Important Notes
 - The README.md should be kept up to date as functionality is added to the project
 - Document API integrations with Kajabi as they are implemented
-- Zoom meetings are created using the Zoom API when users click "Create Zoom" on webinar dates
+- Zoom webinars are created using the Zoom API when users click "Create Zoom" on webinar dates
 - Admin user is created with username "attadmin" and initial password "temporary_password"

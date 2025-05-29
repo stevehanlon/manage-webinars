@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import ZoomSettings
-from .forms import ZoomSettingsForm
+from .models import ZoomSettings, SalesforceSettings
+from .forms import ZoomSettingsForm, SalesforceSettingsForm
 
 
 @login_required
@@ -12,9 +12,15 @@ def settings_dashboard(request):
     zoom_settings = ZoomSettings.get_settings()
     zoom_configured = bool(zoom_settings.client_id and zoom_settings.client_secret and zoom_settings.account_id)
     
+    salesforce_settings = SalesforceSettings.get_settings()
+    salesforce_configured = bool(salesforce_settings.subdomain and salesforce_settings.username and 
+                                salesforce_settings.password and salesforce_settings.security_token)
+    
     return render(request, 'settings/dashboard.html', {
         'zoom_configured': zoom_configured,
-        'zoom_settings': zoom_settings
+        'zoom_settings': zoom_settings,
+        'salesforce_configured': salesforce_configured,
+        'salesforce_settings': salesforce_settings
     })
 
 
@@ -54,3 +60,23 @@ def test_zoom_connection(request):
             'success': False,
             'message': f'Connection test failed: {str(e)}'
         })
+
+
+@login_required
+def salesforce_settings_view(request):
+    """View and update Salesforce configuration settings."""
+    salesforce_settings = SalesforceSettings.get_settings()
+    
+    if request.method == 'POST':
+        form = SalesforceSettingsForm(request.POST, instance=salesforce_settings)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Salesforce settings updated successfully.')
+            return redirect('salesforce_settings')
+    else:
+        form = SalesforceSettingsForm(instance=salesforce_settings)
+    
+    return render(request, 'settings/salesforce_settings.html', {
+        'form': form,
+        'salesforce_settings': salesforce_settings
+    })

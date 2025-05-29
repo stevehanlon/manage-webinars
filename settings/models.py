@@ -54,3 +54,55 @@ class ZoomSettings(models.Model):
             }
         )
         return settings
+
+
+class SalesforceSettings(models.Model):
+    """
+    Singleton model for storing Salesforce API configuration.
+    Only one instance should exist.
+    """
+    subdomain = models.CharField(
+        max_length=255,
+        help_text="Salesforce instance subdomain (e.g., 'mycompany' for mycompany.salesforce.com)"
+    )
+    username = models.CharField(
+        max_length=255,
+        help_text="Salesforce username"
+    )
+    password = models.CharField(
+        max_length=255,
+        help_text="Salesforce password"
+    )
+    security_token = models.CharField(
+        max_length=255,
+        help_text="Salesforce security token"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Salesforce Settings"
+        verbose_name_plural = "Salesforce Settings"
+    
+    def __str__(self):
+        return "Salesforce Configuration"
+    
+    def save(self, *args, **kwargs):
+        # Ensure only one instance exists
+        if not self.pk and SalesforceSettings.objects.exists():
+            raise ValidationError("Only one Salesforce configuration can exist.")
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_settings(cls):
+        """Get the current Salesforce settings instance, create if doesn't exist."""
+        settings, created = cls.objects.get_or_create(
+            pk=1,
+            defaults={
+                'subdomain': '',
+                'username': '',
+                'password': '',
+                'security_token': ''
+            }
+        )
+        return settings

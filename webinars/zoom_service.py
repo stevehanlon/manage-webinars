@@ -94,62 +94,62 @@ class ZoomService:
                     error_msg += f" - HTTP {e.response.status_code}"
             raise ZoomAPIError(error_msg)
     
-    def create_meeting(self, webinar_date):
+    def create_webinar(self, webinar_date):
         """
-        Create a Zoom meeting for a webinar date.
+        Create a Zoom webinar for a webinar date.
         
         Args:
             webinar_date: WebinarDate instance
             
         Returns:
-            dict: Zoom meeting data including meeting_id, join_url, etc.
+            dict: Zoom webinar data including webinar_id, join_url, etc.
         """
-        # Prepare meeting data
-        meeting_data = {
+        # Prepare webinar data
+        webinar_data = {
             "topic": webinar_date.webinar.name,
-            "type": 2,  # Scheduled meeting
+            "type": 5,  # Scheduled webinar
             "start_time": webinar_date.date_time.strftime("%Y-%m-%dT%H:%M:%S"),
             "duration": 60,  # Default duration in minutes
-            "timezone": "UTC",
+            "timezone": "Europe/London",  # Automatically handles BST/GMT transitions
             "settings": {
                 "host_video": True,
-                "participant_video": False,
-                "cn_meeting": False,
-                "in_meeting": False,
-                "join_before_host": False,
-                "mute_upon_entry": True,
-                "watermark": False,
-                "use_pmi": False,
+                "panelists_video": False,
+                "practice_session": False,
+                "hd_video": False,
                 "approval_type": 0,  # Automatically approve
                 "audio": "both",
                 "auto_recording": "none",
                 "enforce_login": False,
-                "waiting_room": True,
-                "allow_multiple_devices": True
+                "registrants_email_notification": True,
+                "close_registration": False,
+                "show_share_button": True,
+                "allow_multiple_devices": True,
+                "on_demand": False,
+                "global_dial_in_countries": ["US"],
+                "contact_name": "Webinar Host",
+                "contact_email": "host@example.com"
             }
         }
         
         # Add template if configured
         if self.zoom_settings.webinar_template_id:
-            meeting_data["template_id"] = self.zoom_settings.webinar_template_id
+            webinar_data["template_id"] = self.zoom_settings.webinar_template_id
         
-        # Get the first user (or could be configured in settings)
-        users_response = self._make_api_request('GET', '/users')
-        if not users_response.get('users'):
-            raise ZoomAPIError("No Zoom users found in the account")
+        # Use 'me' to get the current authenticated user
+        user_response = self._make_api_request('GET', '/users/me')
+        user_id = user_response['id']
         
-        user_id = users_response['users'][0]['id']
-        
-        # Create the meeting
-        endpoint = f"/users/{user_id}/meetings"
-        meeting_response = self._make_api_request('POST', endpoint, meeting_data)
+        # Create the webinar
+        endpoint = f"/users/{user_id}/webinars"
+        webinar_response = self._make_api_request('POST', endpoint, webinar_data)
         
         return {
-            'meeting_id': str(meeting_response['id']),
-            'join_url': meeting_response['join_url'],
-            'start_url': meeting_response['start_url'],
-            'password': meeting_response.get('password', ''),
-            'zoom_response': meeting_response
+            'webinar_id': str(webinar_response['id']),
+            'join_url': webinar_response['join_url'],
+            'start_url': webinar_response['start_url'],
+            'registration_url': webinar_response.get('registration_url', ''),
+            'password': webinar_response.get('password', ''),
+            'zoom_response': webinar_response
         }
     
     def test_connection(self):

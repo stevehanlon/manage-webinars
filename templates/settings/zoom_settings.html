@@ -58,11 +58,11 @@
                     <li>Choose "Server-to-Server OAuth" app type</li>
                     <li>Get your Client ID, Client Secret, and Account ID</li>
                     <li>Optionally create a meeting template in Zoom and enter its ID</li>
-                    <li>Add the required scopes: <code>meeting:write</code></li>
+                    <li>Add the required scopes: <code>webinar:write</code> and <code>user:read</code></li>
                 </ol>
                 
                 <div class="alert alert-info small mt-3">
-                    <strong>Note:</strong> The webinar template ID is optional but recommended for consistent meeting settings.
+                    <strong>Note:</strong> The webinar template ID is optional but recommended for consistent webinar settings.
                 </div>
             </div>
         </div>
@@ -85,8 +85,9 @@ document.getElementById('test-connection').addEventListener('click', function() 
         method: 'POST',
         headers: {
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
         },
+        credentials: 'same-origin',
     })
     .then(response => response.json())
     .then(data => {
