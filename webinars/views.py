@@ -1,0 +1,301 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse_lazy, reverse
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse, HttpResponseRedirect
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.utils import timezone
+
+from .models import Webinar, WebinarDate, Attendee
+from .forms import WebinarForm, WebinarDateForm, AttendeeForm
+
+
+# Dashboard View
+@login_required
+def dashboard(request):
+    webinars = Webinar.objects.filter(deleted_at=None)
+    return render(request, 'webinars/dashboard.html', {'webinars': webinars})
+
+
+# Webinar Views
+class WebinarListView(LoginRequiredMixin, ListView):
+    model = Webinar
+    template_name = 'webinars/webinar_list.html'
+    context_object_name = 'webinars'
+    
+    def get_queryset(self):
+        return Webinar.objects.filter(deleted_at=None)
+
+
+class WebinarDetailView(LoginRequiredMixin, DetailView):
+    model = Webinar
+    template_name = 'webinars/webinar_detail.html'
+    context_object_name = 'webinar'
+    
+    def get_queryset(self):
+        return Webinar.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['dates'] = self.object.active_dates().order_by('date_time')
+        return context
+
+
+class WebinarCreateView(LoginRequiredMixin, CreateView):
+    model = Webinar
+    form_class = WebinarForm
+    template_name = 'webinars/webinar_form.html'
+    success_url = reverse_lazy('dashboard')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Add New Webinar'
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Webinar created successfully.')
+        return super().form_valid(form)
+
+
+class WebinarUpdateView(LoginRequiredMixin, UpdateView):
+    model = Webinar
+    form_class = WebinarForm
+    template_name = 'webinars/webinar_form.html'
+    
+    def get_queryset(self):
+        return Webinar.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Edit Webinar'
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Webinar updated successfully.')
+        return super().form_valid(form)
+
+
+@login_required
+def webinar_delete(request, pk):
+    webinar = get_object_or_404(Webinar, pk=pk, deleted_at=None)
+    
+    if request.method == 'POST':
+        webinar.soft_delete()
+        messages.success(request, 'Webinar deleted successfully.')
+        return redirect('dashboard')
+    
+    return render(request, 'webinars/webinar_confirm_delete.html', {'webinar': webinar})
+
+
+# WebinarDate Views
+class WebinarDateDetailView(LoginRequiredMixin, DetailView):
+    model = WebinarDate
+    template_name = 'webinars/webinar_date_detail.html'
+    context_object_name = 'webinar_date'
+    
+    def get_queryset(self):
+        return WebinarDate.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['attendees'] = self.object.active_attendees()
+        return context
+
+
+class WebinarDateCreateView(LoginRequiredMixin, CreateView):
+    model = WebinarDate
+    form_class = WebinarDateForm
+    template_name = 'webinars/webinar_date_form.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        webinar = get_object_or_404(Webinar, pk=self.kwargs['webinar_id'], deleted_at=None)
+        context['webinar'] = webinar
+        context['title'] = f'Add New Date for {webinar.name}'
+        return context
+    
+    def form_valid(self, form):
+        webinar = get_object_or_404(Webinar, pk=self.kwargs['webinar_id'], deleted_at=None)
+        form.instance.webinar = webinar
+        messages.success(self.request, 'Webinar date created successfully.')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse('webinar_detail', args=[self.kwargs['webinar_id']])
+
+
+class WebinarDateUpdateView(LoginRequiredMixin, UpdateView):
+    model = WebinarDate
+    form_class = WebinarDateForm
+    template_name = 'webinars/webinar_date_form.html'
+    
+    def get_queryset(self):
+        return WebinarDate.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['webinar'] = self.object.webinar
+        context['title'] = f'Edit Date for {self.object.webinar.name}'
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Webinar date updated successfully.')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse('webinar_detail', args=[self.object.webinar.id])
+
+
+@login_required
+def webinar_date_delete(request, pk):
+    webinar_date = get_object_or_404(WebinarDate, pk=pk, deleted_at=None)
+    webinar_id = webinar_date.webinar.id
+    
+    if webinar_date.has_attendees:
+        messages.error(request, 'Cannot delete a webinar date with attendees.')
+        return redirect('webinar_date_detail', pk=pk)
+    
+    if request.method == 'POST':
+        webinar_date.soft_delete()
+        messages.success(request, 'Webinar date deleted successfully.')
+        return redirect('webinar_detail', pk=webinar_id)
+    
+    return render(request, 'webinars/webinar_date_confirm_delete.html', {'webinar_date': webinar_date})
+
+
+@login_required
+def create_zoom_webinar(request, pk):
+    webinar_date = get_object_or_404(WebinarDate, pk=pk, deleted_at=None)
+    
+    # Placeholder for future Zoom integration
+    # This will be implemented later
+    webinar_date.zoom_meeting_id = "placeholder_zoom_id"
+    webinar_date.save()
+    
+    messages.success(request, 'Zoom webinar creation initiated. (Placeholder functionality)')
+    return redirect('webinar_date_detail', pk=pk)
+
+
+# Attendee Views
+@method_decorator(csrf_exempt, name='dispatch')
+def attendee_webhook(request):
+    """Webhook endpoint for registering attendees from Kajabi."""
+    if request.method == 'POST':
+        try:
+            # Try to parse JSON data from the request body
+            try:
+                import json
+                body_unicode = request.body.decode('utf-8')
+                if body_unicode:
+                    data = json.loads(body_unicode)
+                else:
+                    data = {}
+            except json.JSONDecodeError:
+                # Fall back to form data if not valid JSON
+                data = request.POST.dict()
+            
+            # Support direct API calls with specific parameters
+            if 'webinar_date_id' in data or 'webinar_date_id' in request.GET:
+                return handle_direct_webhook(request, data)
+            
+            # Process Kajabi webhook data
+            from .utils import process_kajabi_webhook
+            success, message, attendee_id = process_kajabi_webhook(data, request)
+            
+            if success:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': message,
+                    'attendee_id': attendee_id
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': message
+                }, status=400)
+            
+        except Exception as e:
+            import traceback
+            error_message = f"Unhandled exception: {str(e)}\n{traceback.format_exc()}"
+            
+            # Log the error
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(error_message)
+            
+            # Send error notification email
+            from .utils import send_webhook_error_email
+            try:
+                send_webhook_error_email(
+                    "info@awesometechtraining.com", 
+                    error_message, 
+                    {'request_body': request.body.decode('utf-8') if request.body else None,
+                     'request_POST': dict(request.POST),
+                     'request_GET': dict(request.GET)}
+                )
+            except Exception as email_error:
+                logger.error(f"Failed to send error email: {str(email_error)}")
+            
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Method not allowed'
+    }, status=405)
+
+
+def handle_direct_webhook(request, data):
+    """Handle direct webhook API calls with specific parameters."""
+    # Get data from either JSON body, POST data, or query parameters
+    params = {**request.GET.dict(), **data}
+    
+    webinar_date_id = params.get('webinar_date_id')
+    first_name = params.get('first_name')
+    last_name = params.get('last_name')
+    email = params.get('email')
+    
+    # Validate required fields
+    if not all([webinar_date_id, first_name, email]):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Missing required fields: webinar_date_id, first_name, email'
+        }, status=400)
+    
+    # Get webinar date
+    try:
+        webinar_date = WebinarDate.objects.get(pk=webinar_date_id, deleted_at=None)
+    except WebinarDate.DoesNotExist:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Webinar date not found: {webinar_date_id}'
+        }, status=404)
+    
+    # Create or get attendee
+    attendee, created = Attendee.objects.get_or_create(
+        webinar_date=webinar_date,
+        email=email,
+        defaults={
+            'first_name': first_name,
+            'last_name': last_name or ''  # Default to empty string if no last name
+        }
+    )
+    
+    # If attendee existed but was deleted, restore it
+    if not created and attendee.is_deleted:
+        attendee.deleted_at = None
+        attendee.first_name = first_name
+        attendee.last_name = last_name or ''
+        attendee.save()
+    
+    status = "Created" if created else "Updated"
+    return JsonResponse({
+        'status': 'success',
+        'message': f'{status} attendee for {webinar_date.webinar.name} on {webinar_date.date_time}',
+        'attendee_id': attendee.id
+    })

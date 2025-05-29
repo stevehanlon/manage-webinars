@@ -1,0 +1,49 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}Delete Webinar Date - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'webinar_detail' webinar_date.webinar.id %}">{{ webinar_date.webinar.name }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'webinar_date_detail' webinar_date.id %}">{{ webinar_date.date_time|date:"M d, Y" }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Delete</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h3 class="card-title">Delete Webinar Date</h3>
+            </div>
+            <div class="card-body">
+                <p class="alert alert-warning">
+                    Are you sure you want to delete the webinar date <strong>{{ webinar_date.date_time|date:"F d, Y - H:i" }}</strong> for <strong>{{ webinar_date.webinar.name }}</strong>?
+                </p>
+                
+                {% if webinar_date.has_attendees %}
+                <div class="alert alert-danger">
+                    <p><strong>This date has registered attendees and cannot be deleted.</strong></p>
+                    <p>You must first remove all attendees before deleting this date.</p>
+                </div>
+                {% else %}
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'webinar_date_detail' webinar_date.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

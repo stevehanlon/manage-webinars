@@ -1,0 +1,43 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}{{ title }} - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'webinar_detail' webinar.id %}">{{ webinar.name }}</a></li>
+                {% if webinar_date.id %}
+                <li class="breadcrumb-item"><a href="{% url 'webinar_date_detail' webinar_date.id %}">{{ webinar_date.date_time|date:"M d, Y" }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+                {% else %}
+                <li class="breadcrumb-item active" aria-current="page">Add New Date</li>
+                {% endif %}
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% bootstrap_form form %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'webinar_detail' webinar.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
