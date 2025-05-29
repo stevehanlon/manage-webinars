@@ -1,0 +1,93 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}{{ title }} - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                {% if is_bundle %}
+                    <li class="breadcrumb-item"><a href="{% url 'bundle_detail' bundle_date.bundle.id %}">{{ bundle_date.bundle.name }}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'bundle_date_detail' bundle_date.id %}">{{ bundle_date.date|date:"M d, Y" }}</a></li>
+                {% else %}
+                    <li class="breadcrumb-item"><a href="{% url 'webinar_detail' webinar_date.webinar.id %}">{{ webinar_date.webinar.name }}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'webinar_date_detail' webinar_date.id %}">{{ webinar_date.date_time|date:"M d, Y - H:i" }}</a></li>
+                {% endif %}
+                <li class="breadcrumb-item active" aria-current="page">Add Attendee</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <div class="card">
+            <div class="card-header {% if is_bundle %}bg-success text-white{% endif %}">
+                <h3 class="mb-0">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                {% if is_bundle %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> This attendee will be automatically registered for all webinars included in this bundle:
+                        <ul class="mb-0 mt-2">
+                            {% for wd in bundle_date.webinar_dates.all %}
+                                <li>{{ wd.webinar.name }} - {{ wd.date_time|date:"H:i" }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        {% bootstrap_field form.first_name %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {% bootstrap_field form.last_name %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {% bootstrap_field form.email %}
+                        <small class="text-muted">
+                            {% if is_bundle %}
+                                If an attendee with this email already exists for this bundle, they will be updated.
+                            {% else %}
+                                If an attendee with this email already exists for this webinar, they will be updated.
+                            {% endif %}
+                        </small>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        {% if is_bundle %}
+                            <a href="{% url 'bundle_date_detail' bundle_date.id %}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-success">Add Attendee</button>
+                        {% else %}
+                            <a href="{% url 'webinar_date_detail' webinar_date.id %}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Add Attendee</button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Alternative Methods</h5>
+            </div>
+            <div class="card-body">
+                <p>You can also add attendees via:</p>
+                <ul>
+                    <li><strong>Kajabi Webhook:</strong> Automatic registration from form submissions and purchases</li>
+                    <li><strong>API:</strong> Direct integration using the webhook endpoint</li>
+                    <li><strong>Bulk Import:</strong> Coming soon</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

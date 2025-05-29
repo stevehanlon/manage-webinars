@@ -27,6 +27,9 @@ urlpatterns = [
     path('webinar-dates/<int:pk>/delete/', views.webinar_date_delete, name='webinar_date_delete'),
     path('webinar-dates/<int:pk>/create-zoom/', views.create_zoom_webinar, name='create_zoom_webinar'),
     
+    # Attendee URLs
+    path('webinar-dates/<int:webinar_date_id>/attendees/add/', views.AttendeeCreateView.as_view(), name='attendee_create'),
+    
     # Bundle URLs
     path('bundles/', views.BundleListView.as_view(), name='bundle_list'),
     path('bundles/add/', views.BundleCreateView.as_view(), name='bundle_create'),
@@ -39,6 +42,9 @@ urlpatterns = [
     path('bundle-dates/<int:pk>/', views.BundleDateDetailView.as_view(), name='bundle_date_detail'),
     path('bundle-dates/<int:pk>/edit/', views.BundleDateUpdateView.as_view(), name='bundle_date_update'),
     path('bundle-dates/<int:pk>/delete/', views.bundle_date_delete, name='bundle_date_delete'),
+    
+    # Bundle Attendee URLs
+    path('bundle-dates/<int:bundle_date_id>/attendees/add/', views.BundleAttendeeCreateView.as_view(), name='bundle_attendee_create'),
     
     # API Webhooks
     path('api/attendee-webhook/', views.attendee_webhook, name='attendee_webhook'),

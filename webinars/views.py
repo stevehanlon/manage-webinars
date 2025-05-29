@@ -10,7 +10,7 @@ from django.utils.decorators import method_decorator
 from django.utils import timezone
 
 from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee
-from .forms import WebinarForm, WebinarDateForm, AttendeeForm, WebinarBundleForm, BundleDateForm
+from .forms import WebinarForm, WebinarDateForm, AttendeeForm, WebinarBundleForm, BundleDateForm, BundleAttendeeForm
 
 
 # Dashboard View
@@ -181,6 +181,91 @@ def create_zoom_webinar(request, pk):
     
     messages.success(request, 'Zoom webinar creation initiated. (Placeholder functionality)')
     return redirect('webinar_date_detail', pk=pk)
+
+
+# Attendee Add Views
+class AttendeeCreateView(LoginRequiredMixin, CreateView):
+    model = Attendee
+    form_class = AttendeeForm
+    template_name = 'webinars/attendee_form.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        webinar_date = get_object_or_404(WebinarDate, pk=self.kwargs['webinar_date_id'], deleted_at=None)
+        context['webinar_date'] = webinar_date
+        context['title'] = f'Add Attendee to {webinar_date.webinar.name}'
+        context['is_bundle'] = False
+        return context
+    
+    def form_valid(self, form):
+        webinar_date = get_object_or_404(WebinarDate, pk=self.kwargs['webinar_date_id'], deleted_at=None)
+        form.instance.webinar_date = webinar_date
+        
+        # Check if attendee already exists
+        existing = Attendee.objects.filter(
+            webinar_date=webinar_date,
+            email=form.cleaned_data['email']
+        ).first()
+        
+        if existing:
+            if existing.is_deleted:
+                # Restore deleted attendee
+                existing.deleted_at = None
+                existing.first_name = form.cleaned_data['first_name']
+                existing.last_name = form.cleaned_data['last_name']
+                existing.save()
+                messages.success(self.request, 'Attendee restored successfully.')
+            else:
+                messages.warning(self.request, 'An attendee with this email already exists for this webinar.')
+            return redirect('webinar_date_detail', pk=webinar_date.id)
+        
+        messages.success(self.request, 'Attendee added successfully.')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse('webinar_date_detail', args=[self.kwargs['webinar_date_id']])
+
+
+class BundleAttendeeCreateView(LoginRequiredMixin, CreateView):
+    model = BundleAttendee
+    form_class = BundleAttendeeForm
+    template_name = 'webinars/attendee_form.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bundle_date = get_object_or_404(BundleDate, pk=self.kwargs['bundle_date_id'], deleted_at=None)
+        context['bundle_date'] = bundle_date
+        context['title'] = f'Add Attendee to {bundle_date.bundle.name}'
+        context['is_bundle'] = True
+        return context
+    
+    def form_valid(self, form):
+        bundle_date = get_object_or_404(BundleDate, pk=self.kwargs['bundle_date_id'], deleted_at=None)
+        form.instance.bundle_date = bundle_date
+        
+        # Check if attendee already exists
+        existing = BundleAttendee.objects.filter(
+            bundle_date=bundle_date,
+            email=form.cleaned_data['email']
+        ).first()
+        
+        if existing:
+            if existing.is_deleted:
+                # Restore deleted attendee
+                existing.deleted_at = None
+                existing.first_name = form.cleaned_data['first_name']
+                existing.last_name = form.cleaned_data['last_name']
+                existing.save()
+                messages.success(self.request, 'Bundle attendee restored successfully.')
+            else:
+                messages.warning(self.request, 'An attendee with this email already exists for this bundle.')
+            return redirect('bundle_date_detail', pk=bundle_date.id)
+        
+        messages.success(self.request, 'Bundle attendee added successfully.')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse('bundle_date_detail', args=[self.kwargs['bundle_date_id']])
 
 
 # Attendee Views
