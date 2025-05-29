@@ -1,0 +1,129 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}{{ bundle_date.bundle.name }} - {{ bundle_date.date|date:"M d, Y" }} - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'bundle_detail' bundle_date.bundle.id %}">{{ bundle_date.bundle.name }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ bundle_date.date|date:"M d, Y" }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>{{ bundle_date.bundle.name }}</h1>
+        <h3>{{ bundle_date.date|date:"F d, Y" }}</h3>
+        <span class="badge bg-success">Bundle</span>
+        
+        <div class="mt-3">
+            <h5>Included Webinars:</h5>
+            {% if webinar_dates %}
+                <ul>
+                {% for wd in webinar_dates %}
+                    <li>
+                        <a href="{% url 'webinar_date_detail' wd.id %}">{{ wd.webinar.name }}</a>
+                        - {{ wd.date_time|date:"H:i" }}
+                        ({{ wd.total_attendee_count }} total attendees)
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted">No webinars selected for this bundle date.</p>
+            {% endif %}
+        </div>
+        
+        <p>
+            <strong>Bundle Attendees:</strong> {{ bundle_date.attendee_count }}<br>
+            <strong>Created:</strong> {{ bundle_date.created_at|date:"M d, Y" }}<br>
+            <strong>Last Updated:</strong> {{ bundle_date.updated_at|date:"M d, Y" }}
+        </p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <div class="btn-group">
+            <a href="{% url 'bundle_date_update' bundle_date.id %}" class="btn btn-outline-primary">Edit Date</a>
+            {% if not bundle_date.has_attendees %}
+            <a href="{% url 'bundle_date_delete' bundle_date.id %}" class="btn btn-outline-danger">Delete Date</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Bundle Attendees</h5>
+                <span class="badge bg-success">{{ attendees.count }}</span>
+            </div>
+            <div class="card-body">
+                {% if attendees %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Registered</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attendee in attendees %}
+                            <tr>
+                                <td>{{ attendee.first_name }} {{ attendee.last_name }}</td>
+                                <td>{{ attendee.email }}</td>
+                                <td>{{ attendee.created_at|date:"M d, Y H:i" }}</td>
+                                <td>
+                                    <span class="badge bg-success">Bundle Purchase</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <strong>Note:</strong> These attendees are automatically registered for all webinars included in this bundle. 
+                    They will appear in each individual webinar's attendee list with a "Bundle" indicator.
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <p class="mb-0">No attendees have purchased this bundle date yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Webhook Integration</h5>
+            </div>
+            <div class="card-body">
+                <p>Bundle attendees are registered via the same webhook endpoint as individual webinars:</p>
+                <div class="mb-3">
+                    <code>{{ request.scheme }}://{{ request.get_host }}{% url 'attendee_webhook' %}</code>
+                </div>
+                
+                <p>When a Kajabi form submission or purchase event is received:</p>
+                <ol>
+                    <li>The system matches the form/offer title to "{{ bundle_date.bundle.name }}"</li>
+                    <li>The date is extracted from the configured field</li>
+                    <li>The customer is registered as a bundle attendee</li>
+                    <li>They automatically appear in all included webinar attendee lists</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

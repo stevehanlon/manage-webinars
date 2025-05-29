@@ -9,15 +9,19 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
 
-from .models import Webinar, WebinarDate, Attendee
-from .forms import WebinarForm, WebinarDateForm, AttendeeForm
+from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee
+from .forms import WebinarForm, WebinarDateForm, AttendeeForm, WebinarBundleForm, BundleDateForm
 
 
 # Dashboard View
 @login_required
 def dashboard(request):
     webinars = Webinar.objects.filter(deleted_at=None)
-    return render(request, 'webinars/dashboard.html', {'webinars': webinars})
+    bundles = WebinarBundle.objects.filter(deleted_at=None)
+    return render(request, 'webinars/dashboard.html', {
+        'webinars': webinars,
+        'bundles': bundles
+    })
 
 
 # Webinar Views
@@ -101,7 +105,7 @@ class WebinarDateDetailView(LoginRequiredMixin, DetailView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['attendees'] = self.object.active_attendees()
+        context['attendees'] = self.object.get_all_attendees()
         return context
 
 
@@ -299,3 +303,159 @@ def handle_direct_webhook(request, data):
         'message': f'{status} attendee for {webinar_date.webinar.name} on {webinar_date.date_time}',
         'attendee_id': attendee.id
     })
+
+
+# Bundle Views
+class BundleListView(LoginRequiredMixin, ListView):
+    model = WebinarBundle
+    template_name = 'webinars/bundle_list.html'
+    context_object_name = 'bundles'
+    
+    def get_queryset(self):
+        return WebinarBundle.objects.filter(deleted_at=None)
+
+
+class BundleDetailView(LoginRequiredMixin, DetailView):
+    model = WebinarBundle
+    template_name = 'webinars/bundle_detail.html'
+    context_object_name = 'bundle'
+    
+    def get_queryset(self):
+        return WebinarBundle.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['dates'] = self.object.active_dates().order_by('date')
+        return context
+
+
+class BundleCreateView(LoginRequiredMixin, CreateView):
+    model = WebinarBundle
+    form_class = WebinarBundleForm
+    template_name = 'webinars/bundle_form.html'
+    success_url = reverse_lazy('dashboard')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Add New Bundle'
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Bundle created successfully.')
+        return super().form_valid(form)
+
+
+class BundleUpdateView(LoginRequiredMixin, UpdateView):
+    model = WebinarBundle
+    form_class = WebinarBundleForm
+    template_name = 'webinars/bundle_form.html'
+    
+    def get_queryset(self):
+        return WebinarBundle.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Edit Bundle'
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Bundle updated successfully.')
+        return super().form_valid(form)
+
+
+@login_required
+def bundle_delete(request, pk):
+    bundle = get_object_or_404(WebinarBundle, pk=pk, deleted_at=None)
+    
+    if request.method == 'POST':
+        bundle.soft_delete()
+        messages.success(request, 'Bundle deleted successfully.')
+        return redirect('dashboard')
+    
+    return render(request, 'webinars/bundle_confirm_delete.html', {'bundle': bundle})
+
+
+# Bundle Date Views
+class BundleDateDetailView(LoginRequiredMixin, DetailView):
+    model = BundleDate
+    template_name = 'webinars/bundle_date_detail.html'
+    context_object_name = 'bundle_date'
+    
+    def get_queryset(self):
+        return BundleDate.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['attendees'] = self.object.active_attendees()
+        context['webinar_dates'] = self.object.webinar_dates.filter(deleted_at=None)
+        return context
+
+
+class BundleDateCreateView(LoginRequiredMixin, CreateView):
+    model = BundleDate
+    form_class = BundleDateForm
+    template_name = 'webinars/bundle_date_form.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bundle = get_object_or_404(WebinarBundle, pk=self.kwargs['bundle_id'], deleted_at=None)
+        context['bundle'] = bundle
+        context['title'] = f'Add New Date for {bundle.name}'
+        return context
+    
+    def post(self, request, *args, **kwargs):
+        # Check if this is just a date change (not a real submission)
+        if '_date_changed' in request.POST:
+            # Just re-render the form with the new date
+            self.object = None
+            form = self.get_form()
+            return self.form_invalid(form)
+        return super().post(request, *args, **kwargs)
+    
+    def form_valid(self, form):
+        bundle = get_object_or_404(WebinarBundle, pk=self.kwargs['bundle_id'], deleted_at=None)
+        form.instance.bundle = bundle
+        messages.success(self.request, 'Bundle date created successfully.')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse('bundle_detail', args=[self.kwargs['bundle_id']])
+
+
+class BundleDateUpdateView(LoginRequiredMixin, UpdateView):
+    model = BundleDate
+    form_class = BundleDateForm
+    template_name = 'webinars/bundle_date_form.html'
+    
+    def get_queryset(self):
+        return BundleDate.objects.filter(deleted_at=None)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['bundle'] = self.object.bundle
+        context['title'] = f'Edit Date for {self.object.bundle.name}'
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Bundle date updated successfully.')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse('bundle_detail', args=[self.object.bundle.id])
+
+
+@login_required
+def bundle_date_delete(request, pk):
+    bundle_date = get_object_or_404(BundleDate, pk=pk, deleted_at=None)
+    bundle_id = bundle_date.bundle.id
+    
+    if bundle_date.has_attendees:
+        messages.error(request, 'Cannot delete a bundle date with attendees.')
+        return redirect('bundle_date_detail', pk=pk)
+    
+    if request.method == 'POST':
+        bundle_date.soft_delete()
+        messages.success(request, 'Bundle date deleted successfully.')
+        return redirect('bundle_detail', pk=bundle_id)
+    
+    return render(request, 'webinars/bundle_date_confirm_delete.html', {'bundle_date': bundle_date})

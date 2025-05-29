@@ -1,5 +1,5 @@
 from django import forms
-from .models import Webinar, WebinarDate, Attendee
+from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee
 
 
 class WebinarForm(forms.ModelForm):
@@ -29,6 +29,67 @@ class WebinarDateForm(forms.ModelForm):
 class AttendeeForm(forms.ModelForm):
     class Meta:
         model = Attendee
+        fields = ['first_name', 'last_name', 'email']
+        widgets = {
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+        }
+
+
+class WebinarBundleForm(forms.ModelForm):
+    class Meta:
+        model = WebinarBundle
+        fields = ['name', 'kajabi_grant_activation_hook_url', 'form_date_field', 
+                 'checkout_date_field', 'error_notification_email']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'kajabi_grant_activation_hook_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'form_date_field': forms.TextInput(attrs={'class': 'form-control'}),
+            'checkout_date_field': forms.TextInput(attrs={'class': 'form-control'}),
+            'error_notification_email': forms.EmailInput(attrs={'class': 'form-control'}),
+        }
+
+
+class BundleDateForm(forms.ModelForm):
+    webinar_dates = forms.ModelMultipleChoiceField(
+        queryset=WebinarDate.objects.none(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        required=False,
+        help_text="Select webinars to include in this bundle"
+    )
+    
+    class Meta:
+        model = BundleDate
+        fields = ['date', 'webinar_dates']
+        widgets = {
+            'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            # If editing, show webinars from the selected date
+            webinars = self.instance.get_webinars_on_date()
+            self.fields['webinar_dates'].queryset = webinars
+            self.fields['webinar_dates'].initial = self.instance.webinar_dates.all()
+        elif self.data.get('date'):
+            # If date is submitted, filter webinars for that date
+            from datetime import datetime
+            try:
+                date_str = self.data.get('date')
+                selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                self.fields['webinar_dates'].queryset = WebinarDate.objects.filter(
+                    date_time__date=selected_date,
+                    deleted_at=None
+                ).order_by('date_time', 'webinar__name')
+            except:
+                pass
+
+
+class BundleAttendeeForm(forms.ModelForm):
+    class Meta:
+        model = BundleAttendee
         fields = ['first_name', 'last_name', 'email']
         widgets = {
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),

@@ -26,7 +26,8 @@
             {% else %}
             <strong>Zoom Meeting ID:</strong> <span class="text-muted">Not set</span><br>
             {% endif %}
-            <strong>Attendees:</strong> {{ webinar_date.attendee_count }}<br>
+            <strong>Direct Attendees:</strong> {{ webinar_date.attendee_count }}<br>
+            <strong>Total Attendees (including bundles):</strong> {{ webinar_date.total_attendee_count }}<br>
             <strong>Created:</strong> {{ webinar_date.created_at|date:"M d, Y" }}<br>
             <strong>Last Updated:</strong> {{ webinar_date.updated_at|date:"M d, Y" }}
         </p>
@@ -66,7 +67,12 @@
                         <tbody>
                             {% for attendee in attendees %}
                             <tr>
-                                <td>{{ attendee.first_name }} {{ attendee.last_name }}</td>
+                                <td>
+                                    {{ attendee.first_name }} {{ attendee.last_name }}
+                                    {% if attendee.is_bundle_attendee %}
+                                    <span class="badge bg-info ms-2">Bundle: {{ attendee.bundle_name }}</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ attendee.email }}</td>
                                 <td>{{ attendee.created_at|date:"M d, Y H:i" }}</td>
                                 <td>

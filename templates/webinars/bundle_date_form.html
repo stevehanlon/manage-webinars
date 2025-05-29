@@ -1,0 +1,94 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}{{ title }} - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'bundle_detail' bundle.id %}">{{ bundle.name }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        {% bootstrap_field form.date %}
+                        <small class="text-muted">Select the date for this bundle offering</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.webinar_dates.label }}</label>
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> After selecting a date above, all webinars scheduled on that day will appear here for selection.
+                        </div>
+                        {% if form.webinar_dates.field.queryset.exists %}
+                            <div class="border rounded p-3">
+                                {% for choice in form.webinar_dates %}
+                                    <div class="form-check">
+                                        {{ choice.tag }}
+                                        <label class="form-check-label" for="{{ choice.id_for_label }}">
+                                            {{ choice.choice_label }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">{{ form.webinar_dates.help_text }}</small>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                No webinars are scheduled on the selected date. Please ensure you have webinars scheduled on the date you selected.
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'bundle_detail' bundle.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success">Save Bundle Date</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">How Bundle Dates Work</h5>
+            </div>
+            <div class="card-body">
+                <p>When creating a bundle date:</p>
+                <ol>
+                    <li>Select the date when the bundle will run</li>
+                    <li>The system will show all webinars scheduled on that date</li>
+                    <li>Select which webinars to include in this bundle offering</li>
+                    <li>When customers purchase this bundle, they'll be registered for all selected webinars</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.querySelector('input[name="date"]');
+    if (dateInput) {
+        dateInput.addEventListener('change', function() {
+            // When date changes, submit form to refresh webinar list
+            this.form.submit();
+        });
+    }
+});
+</script>
+{% endblock %}

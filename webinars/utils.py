@@ -31,13 +31,15 @@ def parse_webinar_date(date_str):
         date_time_str = f"{day} {month} {datetime.now().year} {hour}:{minute}"
         parsed_date = parse(date_time_str)
         
+        # Convert to timezone-aware datetime first
+        parsed_date = timezone.make_aware(parsed_date)
+        
         # If parsed date is in the past, assume it's for next year
         current_date = timezone.now()
         if parsed_date < current_date:
             parsed_date = parsed_date.replace(year=current_date.year + 1)
         
-        # Convert to timezone-aware datetime
-        return timezone.make_aware(parsed_date)
+        return parsed_date
     
     except Exception as e:
         logger.error(f"Error parsing date '{date_str}': {str(e)}")
@@ -66,6 +68,28 @@ def find_webinar_by_form_title(form_title):
     return None
 
 
+def find_bundle_by_form_title(form_title):
+    """
+    Find a bundle that matches a form title.
+    This is a simple match based on substring for now.
+    """
+    from .models import WebinarBundle
+    
+    bundles = WebinarBundle.objects.filter(deleted_at=None)
+    
+    # First try exact match
+    for bundle in bundles:
+        if bundle.name.lower() == form_title.lower():
+            return bundle
+    
+    # Then try partial match
+    for bundle in bundles:
+        if bundle.name.lower() in form_title.lower() or form_title.lower() in bundle.name.lower():
+            return bundle
+    
+    return None
+
+
 def find_webinar_date(webinar, date_time):
     """
     Find a webinar date close to the given date and time.
@@ -89,12 +113,33 @@ def find_webinar_date(webinar, date_time):
     return None
 
 
+def find_bundle_date(bundle, date_time):
+    """
+    Find a bundle date that matches the given date.
+    """
+    if not date_time:
+        return None
+    
+    # Extract just the date part
+    target_date = date_time.date()
+    
+    # Find bundle dates that match the date
+    dates = bundle.active_dates().filter(
+        date=target_date
+    )
+    
+    if dates.exists():
+        return dates.first()
+    
+    return None
+
+
 def process_kajabi_webhook(data, request):
     """
     Process Kajabi webhook data and register attendee.
     Returns (success, message, attendee_id)
     """
-    from .models import Webinar, WebinarDate, Attendee
+    from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee
     
     try:
         # Determine which type of webhook is being received
@@ -105,10 +150,16 @@ def process_kajabi_webhook(data, request):
             payload = data.get('payload', {})
             form_title = payload.get('form_title', '')
             
+            # First check if it's a bundle
+            bundle = find_bundle_by_form_title(form_title)
+            if bundle:
+                # Process as bundle
+                return process_bundle_webhook(bundle, payload, 'form', data)
+            
             # Find the matching webinar
             webinar = find_webinar_by_form_title(form_title)
             if not webinar:
-                return False, f"No matching webinar found for form: {form_title}", None
+                return False, f"No matching webinar or bundle found for form: {form_title}", None
             
             # Extract attendee information
             first_name = payload.get('First Name', '')
@@ -123,10 +174,16 @@ def process_kajabi_webhook(data, request):
             payload = data.get('payload', {})
             offer_title = payload.get('offer_title', '')
             
+            # First check if it's a bundle
+            bundle = find_bundle_by_form_title(offer_title)
+            if bundle:
+                # Process as bundle
+                return process_bundle_webhook(bundle, payload, 'purchase', data)
+            
             # Find the matching webinar
             webinar = find_webinar_by_form_title(offer_title)
             if not webinar:
-                return False, f"No matching webinar found for offer: {offer_title}", None
+                return False, f"No matching webinar or bundle found for offer: {offer_title}", None
             
             # Extract attendee information
             first_name = payload.get('member_first_name', '')
@@ -179,7 +236,74 @@ def process_kajabi_webhook(data, request):
         
         # Send error notification email with details
         try:
-            error_email = webinar.error_notification_email if webinar else "info@awesometechtraining.com"
+            error_email = webinar.error_notification_email if 'webinar' in locals() and webinar else "info@awesometechtraining.com"
+            send_webhook_error_email(error_email, error_message, data)
+        except Exception as email_error:
+            logger.error(f"Failed to send error email: {str(email_error)}")
+        
+        return False, error_message, None
+
+
+def process_bundle_webhook(bundle, payload, webhook_type, data):
+    """
+    Process webhook for bundle purchases.
+    """
+    from .models import BundleAttendee
+    
+    try:
+        # Extract attendee information based on webhook type
+        if webhook_type == 'form':
+            first_name = payload.get('First Name', '')
+            last_name = ''
+            email = payload.get('Email', '')
+            date_str = payload.get(bundle.form_date_field, '')
+        else:  # purchase
+            first_name = payload.get('member_first_name', '')
+            last_name = payload.get('member_last_name', '')
+            email = payload.get('member_email', '')
+            date_str = payload.get(bundle.checkout_date_field, '')
+        
+        # Validate required fields
+        if not all([first_name, email, date_str]):
+            return False, "Missing required fields: first_name, email, or date", None
+        
+        # Parse date string to datetime
+        parsed_date = parse_webinar_date(date_str)
+        if not parsed_date:
+            return False, f"Could not parse date: {date_str}", None
+        
+        # Find matching bundle date
+        bundle_date = find_bundle_date(bundle, parsed_date)
+        if not bundle_date:
+            return False, f"No matching bundle date found near: {parsed_date}", None
+        
+        # Create or update bundle attendee
+        attendee, created = BundleAttendee.objects.get_or_create(
+            bundle_date=bundle_date,
+            email=email,
+            defaults={
+                'first_name': first_name,
+                'last_name': last_name
+            }
+        )
+        
+        # If attendee existed but was deleted, restore it
+        if not created and attendee.is_deleted:
+            attendee.deleted_at = None
+            attendee.first_name = first_name
+            attendee.last_name = last_name
+            attendee.save()
+        
+        status = "Created" if created else "Updated"
+        return True, f"{status} bundle attendee for {bundle.name} on {bundle_date.date}", attendee.id
+        
+    except Exception as e:
+        error_message = f"Error processing bundle webhook: {str(e)}"
+        logger.error(error_message)
+        
+        # Send error notification email with details
+        try:
+            error_email = bundle.error_notification_email
             send_webhook_error_email(error_email, error_message, data)
         except Exception as email_error:
             logger.error(f"Failed to send error email: {str(email_error)}")

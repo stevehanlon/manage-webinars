@@ -1,0 +1,54 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}Delete Bundle - {{ bundle.name }} - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'bundle_detail' bundle.id %}">{{ bundle.name }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Delete</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h3 class="mb-0">Delete Bundle</h3>
+            </div>
+            <div class="card-body">
+                <p>Are you sure you want to delete the bundle <strong>"{{ bundle.name }}"</strong>?</p>
+                
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> This action will:
+                    <ul class="mb-0">
+                        <li>Remove the bundle and all its dates</li>
+                        <li>Remove all bundle attendee registrations</li>
+                        <li>This action cannot be undone</li>
+                    </ul>
+                </div>
+                
+                <p><strong>Bundle Details:</strong></p>
+                <ul>
+                    <li>Bundle Dates: {{ bundle.active_dates.count }}</li>
+                    <li>Created: {{ bundle.created_at|date:"M d, Y" }}</li>
+                </ul>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'bundle_detail' bundle.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-danger">Delete Bundle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
