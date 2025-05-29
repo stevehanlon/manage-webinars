@@ -3,3 +3,5 @@ mysqlclient==2.2.7
 djangorestframework==3.16.0
 django-bootstrap5==25.1
 python-dateutil==2.9.0.post0
+requests==2.32.3
+pyjwt==2.10.1

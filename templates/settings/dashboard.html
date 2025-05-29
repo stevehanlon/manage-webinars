@@ -1,0 +1,74 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}Settings - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Settings</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>System Settings</h1>
+        <p class="text-muted">Configure system integrations and settings.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-camera-video"></i> Zoom Integration
+                </h5>
+                {% if zoom_configured %}
+                <span class="badge bg-success">Configured</span>
+                {% else %}
+                <span class="badge bg-warning">Not Configured</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Configure Zoom API credentials to automatically create Zoom meetings for your webinars.
+                </p>
+                {% if zoom_configured %}
+                <p class="small text-muted">
+                    <strong>Account ID:</strong> {{ zoom_settings.account_id }}<br>
+                    {% if zoom_settings.webinar_template_id %}
+                    <strong>Template ID:</strong> {{ zoom_settings.webinar_template_id }}
+                    {% else %}
+                    <strong>Template ID:</strong> <em>Not set</em>
+                    {% endif %}
+                </p>
+                {% endif %}
+                <a href="{% url 'zoom_settings' %}" class="btn btn-primary">
+                    {% if zoom_configured %}Update{% else %}Configure{% endif %} Zoom Settings
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-gear"></i> Future Integrations
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted">
+                    Additional integrations and settings will be available here in future updates.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

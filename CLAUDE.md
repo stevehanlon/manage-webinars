@@ -60,7 +60,11 @@ This is a Django application for managing registrations to webinars from Kajabi 
   - forms.py: Form definitions for webinar management
   - api.py: REST API viewsets
   - serializers.py: Django REST Framework serializers
+  - zoom_service.py: Zoom API integration service
 - accounts/: App for user authentication and management
+- settings/: App for system configuration
+  - models.py: Defines ZoomSettings model for API credentials
+  - views.py: Settings dashboard and configuration views
 - templates/: HTML templates organized by app
 - static/: Static assets (CSS, JS)
 
@@ -90,8 +94,27 @@ The webhook at `/api/attendee-webhook/` supports two types of Kajabi events:
 
 The webhook includes error handling with email notifications to the address specified in each webinar's error_notification_email field.
 
+## Zoom Integration
+The application includes Zoom API integration for automatically creating meetings:
+
+### Configuration
+- Access Settings -> Zoom Settings to configure API credentials
+- Required: Client ID, Client Secret, Account ID (from Zoom Server-to-Server OAuth App)
+- Optional: Webinar Template ID for consistent meeting settings
+
+### Features
+- Automatic Zoom meeting creation for webinar dates
+- Test connection functionality to verify API credentials
+- Integration with existing "Create Zoom" buttons in webinar management
+
+### Setup Requirements
+1. Create a Zoom Server-to-Server OAuth App at https://marketplace.zoom.us/
+2. Add required scopes: `meeting:write`
+3. Configure credentials in the Settings -> Zoom Settings page
+4. Test connection to verify setup
+
 ## Important Notes
 - The README.md should be kept up to date as functionality is added to the project
 - Document API integrations with Kajabi as they are implemented
-- Future Zoom integration will need to be implemented in the WebinarDate model
+- Zoom meetings are created using the Zoom API when users click "Create Zoom" on webinar dates
 - Admin user is created with username "attadmin" and initial password "temporary_password"

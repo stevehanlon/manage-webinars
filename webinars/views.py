@@ -174,12 +174,33 @@ def webinar_date_delete(request, pk):
 def create_zoom_webinar(request, pk):
     webinar_date = get_object_or_404(WebinarDate, pk=pk, deleted_at=None)
     
-    # Placeholder for future Zoom integration
-    # This will be implemented later
-    webinar_date.zoom_meeting_id = "placeholder_zoom_id"
-    webinar_date.save()
+    # Check if Zoom meeting already exists
+    if webinar_date.zoom_meeting_id:
+        messages.warning(request, 'A Zoom meeting already exists for this webinar date.')
+        return redirect('webinar_date_detail', pk=pk)
     
-    messages.success(request, 'Zoom webinar creation initiated. (Placeholder functionality)')
+    try:
+        from .zoom_service import ZoomService
+        zoom_service = ZoomService()
+        
+        # Create the Zoom meeting
+        meeting_data = zoom_service.create_meeting(webinar_date)
+        
+        # Save the meeting ID to the webinar date
+        webinar_date.zoom_meeting_id = meeting_data['meeting_id']
+        webinar_date.save()
+        
+        messages.success(
+            request, 
+            f'Zoom meeting created successfully! Meeting ID: {meeting_data["meeting_id"]}'
+        )
+        
+    except Exception as e:
+        messages.error(
+            request, 
+            f'Failed to create Zoom meeting: {str(e)}. Please check your Zoom settings.'
+        )
+    
     return redirect('webinar_date_detail', pk=pk)
 
 

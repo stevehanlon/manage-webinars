@@ -41,6 +41,9 @@
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'webinar_list' %}active{% endif %}" href="{% url 'webinar_list' %}">Webinars</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'settings_dashboard' %}">Settings</a>
+                    </li>
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
