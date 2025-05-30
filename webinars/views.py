@@ -142,7 +142,7 @@ class WebinarDateUpdateView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['webinar'] = self.object.webinar
-        context['title'] = f'Edit Date for {self.object.webinar.name}'
+        context['title'] = f'Edit {self.object.webinar.name}'
         return context
     
     def form_valid(self, form):
