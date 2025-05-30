@@ -290,16 +290,13 @@ class BundleAttendeeCreateView(LoginRequiredMixin, CreateView):
 
 
 # Attendee Views
-@method_decorator(csrf_exempt, name='dispatch')
+@csrf_exempt
 def attendee_webhook(request):
     """Webhook endpoint for registering attendees from Kajabi."""
-    if request.method in ['GET', 'HEAD']:
-        response = JsonResponse({
-            'status': 'ok',
-            'message': 'Webhook endpoint is active'
-        })
-        # For HEAD requests, Django automatically removes the body
-        return response
+    # Always return 200 OK for non-POST requests (GET, HEAD, OPTIONS)
+    if request.method != 'POST':
+        from django.http import HttpResponse
+        return HttpResponse('OK', content_type='text/plain', status=200)
     
     if request.method == 'POST':
         try:
