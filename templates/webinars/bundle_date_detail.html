@@ -47,7 +47,7 @@
     </div>
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
         <div class="btn-group">
-            <a href="{% url 'bundle_date_update' bundle_date.id %}" class="btn btn-outline-primary">Edit Date</a>
+            <a href="{% url 'bundle_date_update' bundle_date.id %}" class="btn btn-outline-primary">Edit</a>
             {% if not bundle_date.has_attendees %}
             <a href="{% url 'bundle_date_delete' bundle_date.id %}" class="btn btn-outline-danger">Delete Date</a>
             {% endif %}
