@@ -293,6 +293,12 @@ class BundleAttendeeCreateView(LoginRequiredMixin, CreateView):
 @method_decorator(csrf_exempt, name='dispatch')
 def attendee_webhook(request):
     """Webhook endpoint for registering attendees from Kajabi."""
+    if request.method == 'GET':
+        return JsonResponse({
+            'status': 'ok',
+            'message': 'Webhook endpoint is active'
+        })
+    
     if request.method == 'POST':
         try:
             # Try to parse JSON data from the request body
