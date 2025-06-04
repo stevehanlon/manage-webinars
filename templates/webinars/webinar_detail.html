@@ -100,4 +100,51 @@
         </div>
     </div>
 </div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Webhook Integration</h5>
+            </div>
+            <div class="card-body">
+                <h6>Kajabi Webhook Integration</h6>
+                <p>Attendees can be automatically registered from Kajabi form submissions or purchases. Configure your Kajabi webhook to send data to:</p>
+                <div class="mb-3">
+                    <code>{{ request.scheme }}://{{ request.get_host }}{% url 'attendee_webhook' %}</code>
+                </div>
+                
+                <p>The system will automatically:</p>
+                <ul>
+                    <li>Match the form/offer title to "{{ webinar.name }}"{% if webinar.aliases %} or its aliases{% endif %}</li>
+                    <li>Extract the date from the "{{ webinar.form_date_field }}" field (forms) or "{{ webinar.checkout_date_field }}" field (purchases)</li>
+                    <li>Create a new webinar date if one doesn't exist for the extracted date</li>
+                    <li>Register the attendee with the correct webinar date</li>
+                </ul>
+
+                {% if webinar.aliases %}
+                <div class="alert alert-info">
+                    <h6>Alternative Names (Aliases):</h6>
+                    <p class="mb-0">This webinar can also be matched by these alternative names:</p>
+                    <ul class="mb-0">
+                        {% for alias in webinar.get_all_names %}
+                            {% if not forloop.first %}
+                            <li><code>{{ alias }}</code></li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <hr>
+                
+                <h6>Kajabi Grant Activation</h6>
+                <p>After attendees are registered, they can be granted access using:</p>
+                <div class="mb-3">
+                    <code>{{ webinar.kajabi_grant_activation_hook_url }}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

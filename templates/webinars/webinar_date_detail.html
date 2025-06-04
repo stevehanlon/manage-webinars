@@ -105,32 +105,25 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Webhook Integration</h5>
+                <h5 class="mb-0">Direct API Integration</h5>
             </div>
             <div class="card-body">
-                <h6>Kajabi Webhook Integration</h6>
-                <p>Attendees can be automatically registered from Kajabi form submissions or purchases. Configure your Kajabi webhook to send data to:</p>
+                <p>For direct registration to this specific webinar date, send a POST request to:</p>
                 <div class="mb-3">
                     <code>{{ request.scheme }}://{{ request.get_host }}{% url 'attendee_webhook' %}</code>
                 </div>
                 
-                <p>The system will automatically:</p>
-                <ul>
-                    <li>Match the form/offer title to this webinar</li>
-                    <li>Extract the date from the field configured in webinar settings</li>
-                    <li>Register the attendee with the correct webinar date</li>
-                </ul>
-                
-                <hr>
-                
-                <h6>Direct API Integration</h6>
-                <p>For direct API integration, send a POST request to the same URL with:</p>
+                <p>Include these parameters:</p>
                 <ul>
                     <li><code>webinar_date_id</code>: <strong>{{ webinar_date.id }}</strong></li>
                     <li><code>first_name</code>: Attendee's first name</li>
                     <li><code>last_name</code>: Attendee's last name</li>
                     <li><code>email</code>: Attendee's email address</li>
                 </ul>
+                
+                <div class="alert alert-info">
+                    <strong>Note:</strong> For general Kajabi webhook integration instructions, see the main <a href="{% url 'webinar_detail' webinar_date.webinar.id %}">{{ webinar_date.webinar.name }}</a> page.
+                </div>
             </div>
         </div>
     </div>
