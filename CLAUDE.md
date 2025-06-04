@@ -131,6 +131,32 @@ The application includes configuration for future Salesforce API integration:
 ### Note
 These settings prepare the system for future Salesforce integrations with webinar attendee data. No active integration is currently implemented.
 
+## MS365 Calendar Integration
+The application includes Microsoft 365 calendar integration for automatically sending calendar invites when webinar dates are created:
+
+### Configuration
+- Access Settings -> MS365 Settings to configure API credentials
+- Required: Client ID, Client Secret, Tenant ID (from Azure App Registration)
+- Owner Email: Calendar where meetings will be created
+
+### Features
+- Automatic calendar invites when dates are auto-created from Kajabi webhooks
+- Invites sent to all users in the "calendar" Django group
+- Auto-created dates marked with [AUTO-CREATED] prefix
+- Integration with webinar and bundle dates
+
+### Setup Requirements
+1. Create an Azure App Registration at https://portal.azure.com
+2. Add required permissions: `Calendars.ReadWrite` and `User.Read`
+3. Configure credentials in the Settings -> MS365 Settings page
+4. Create "calendar" group: `python manage.py create_calendar_group`
+5. Add users to the calendar group via Django admin
+
+### Calendar Group Management
+- Users must be in the "calendar" group to receive invites
+- Only users with email addresses will receive invites
+- Manage group membership in Django Admin -> Groups -> calendar
+
 ## Important Notes
 - The README.md should be kept up to date as functionality is added to the project
 - Document API integrations with Kajabi as they are implemented

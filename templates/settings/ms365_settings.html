@@ -1,0 +1,109 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}MS365 Settings - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'settings_dashboard' %}">Settings</a></li>
+                <li class="breadcrumb-item active" aria-current="page">MS365 Settings</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>Microsoft 365 Calendar Settings</h1>
+        <p class="text-muted">Configure Microsoft 365 API credentials for calendar integration.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">MS365 Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% bootstrap_form form %}
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                        <a href="{% url 'settings_dashboard' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Calendar Group Management</h5>
+            </div>
+            <div class="card-body">
+                <p>To manage which users receive calendar invites:</p>
+                <ol>
+                    <li>Go to the <a href="{% url 'admin:auth_group_changelist' %}" target="_blank">Django Admin Groups page</a></li>
+                    <li>Find or create the group named <strong>"calendar"</strong></li>
+                    <li>Add users to this group who should receive calendar invites</li>
+                </ol>
+                <p class="text-muted">
+                    <strong>Note:</strong> Only users with email addresses will receive invites.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Setup Instructions</h5>
+            </div>
+            <div class="card-body">
+                <h6>To set up Microsoft 365 integration:</h6>
+                <ol class="small">
+                    <li>Go to <a href="https://portal.azure.com" target="_blank">Azure Portal</a></li>
+                    <li>Navigate to Azure Active Directory → App registrations</li>
+                    <li>Create a new registration or use existing</li>
+                    <li>Note down your:
+                        <ul>
+                            <li>Application (client) ID</li>
+                            <li>Directory (tenant) ID</li>
+                        </ul>
+                    </li>
+                    <li>Go to Certificates & secrets</li>
+                    <li>Create a new client secret</li>
+                    <li>Grant these API permissions:
+                        <ul>
+                            <li>Microsoft Graph → Calendars.ReadWrite</li>
+                            <li>Microsoft Graph → User.Read</li>
+                        </ul>
+                    </li>
+                    <li>Enter the credentials here</li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">How it Works</h5>
+            </div>
+            <div class="card-body">
+                <p class="small">When a new webinar or bundle date is automatically created from a Kajabi webhook:</p>
+                <ul class="small">
+                    <li>A calendar invite is created in the owner's calendar</li>
+                    <li>All users in the "calendar" group are invited</li>
+                    <li>The invite includes webinar details and links</li>
+                    <li>Auto-created dates are marked with [AUTO-CREATED] prefix</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -6,4 +6,5 @@ urlpatterns = [
     path('zoom/', views.zoom_settings_view, name='zoom_settings'),
     path('zoom/test/', views.test_zoom_connection, name='test_zoom_connection'),
     path('salesforce/', views.salesforce_settings_view, name='salesforce_settings'),
+    path('ms365/', views.ms365_settings_view, name='ms365_settings'),
 ]

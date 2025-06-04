@@ -119,6 +119,15 @@ def find_or_create_webinar_date(webinar, date_time, auto_create=True):
             webinar=webinar,
             date_time=date_time
         )
+        
+        # Send calendar invite for auto-created date
+        try:
+            from .ms365_service import MS365CalendarService
+            ms365_service = MS365CalendarService()
+            ms365_service.create_webinar_meeting(new_date, was_auto_created=True)
+        except Exception as e:
+            logger.error(f"Failed to create calendar invite: {str(e)}")
+        
         return new_date, True
     
     return None, False
@@ -151,6 +160,15 @@ def find_or_create_bundle_date(bundle, date_time, auto_create=True):
             bundle=bundle,
             date=target_date
         )
+        
+        # Send calendar invite for auto-created date
+        try:
+            from .ms365_service import MS365CalendarService
+            ms365_service = MS365CalendarService()
+            ms365_service.create_bundle_meeting(new_date, was_auto_created=True)
+        except Exception as e:
+            logger.error(f"Failed to create calendar invite: {str(e)}")
+        
         return new_date, True
     
     return None, False

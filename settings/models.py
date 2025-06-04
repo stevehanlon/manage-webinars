@@ -106,3 +106,55 @@ class SalesforceSettings(models.Model):
             }
         )
         return settings
+
+
+
+class MS365Settings(models.Model):
+    """
+    Singleton model for storing Microsoft 365 API configuration.
+    Only one instance should exist.
+    """
+    client_id = models.CharField(
+        max_length=255,
+        help_text="Microsoft Azure App Client ID"
+    )
+    client_secret = models.CharField(
+        max_length=255,
+        help_text="Microsoft Azure App Client Secret"
+    )
+    tenant_id = models.CharField(
+        max_length=255,
+        help_text="Microsoft Azure Tenant ID"
+    )
+    owner_email = models.EmailField(
+        help_text="Email address of the calendar owner (meetings will be created in this calendar)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "MS365 Settings"
+        verbose_name_plural = "MS365 Settings"
+    
+    def __str__(self):
+        return "MS365 Configuration"
+    
+    def save(self, *args, **kwargs):
+        # Ensure only one instance exists
+        if not self.pk and MS365Settings.objects.exists():
+            raise ValidationError("Only one MS365 configuration can exist.")
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_settings(cls):
+        """Get the current MS365 settings instance, create if doesn't exist."""
+        settings, created = cls.objects.get_or_create(
+            pk=1,
+            defaults={
+                'client_id': '',
+                'client_secret': '',
+                'tenant_id': '',
+                'owner_email': 'info@awesometechtraining.com'
+            }
+        )
+        return settings

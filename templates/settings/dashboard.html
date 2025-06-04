@@ -89,6 +89,35 @@
 <div class="row mt-4">
     <div class="col-md-6">
         <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-calendar"></i> MS365 Calendar Integration
+                </h5>
+                {% if ms365_configured %}
+                <span class="badge bg-success">Configured</span>
+                {% else %}
+                <span class="badge bg-warning">Not Configured</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Configure Microsoft 365 credentials to automatically send calendar invites to staff when webinar dates are created.
+                </p>
+                {% if ms365_configured %}
+                <p class="small text-muted">
+                    <strong>Owner Email:</strong> {{ ms365_settings.owner_email }}<br>
+                    <strong>Tenant ID:</strong> {{ ms365_settings.tenant_id|slice:":8" }}...
+                </p>
+                {% endif %}
+                <a href="{% url 'ms365_settings' %}" class="btn btn-primary">
+                    {% if ms365_configured %}Update{% else %}Configure{% endif %} MS365 Settings
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="bi bi-gear"></i> Future Integrations

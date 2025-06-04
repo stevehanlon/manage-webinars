@@ -167,3 +167,8 @@ secrets.json
 
 # Example files
 example.json
+
+# org notes
+*.org
+
+fulfill
