@@ -25,15 +25,6 @@ def dashboard(request):
 
 
 # Webinar Views
-class WebinarListView(LoginRequiredMixin, ListView):
-    model = Webinar
-    template_name = 'webinars/webinar_list.html'
-    context_object_name = 'webinars'
-    
-    def get_queryset(self):
-        return Webinar.objects.filter(deleted_at=None)
-
-
 class WebinarDetailView(LoginRequiredMixin, DetailView):
     model = Webinar
     template_name = 'webinars/webinar_detail.html'

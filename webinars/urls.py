@@ -14,7 +14,6 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     
     # Webinar URLs
-    path('webinars/', views.WebinarListView.as_view(), name='webinar_list'),
     path('webinars/add/', views.WebinarCreateView.as_view(), name='webinar_create'),
     path('webinars/<int:pk>/', views.WebinarDetailView.as_view(), name='webinar_detail'),
     path('webinars/<int:pk>/edit/', views.WebinarUpdateView.as_view(), name='webinar_update'),
