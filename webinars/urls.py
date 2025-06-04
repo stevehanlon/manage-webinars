@@ -48,6 +48,12 @@ urlpatterns = [
     # API Webhooks
     path('api/attendee-webhook/', views.attendee_webhook, name='attendee_webhook'),
     
+    # Activation URLs
+    path('activate/attendee/<int:attendee_id>/', views.activate_attendee_view, name='activate_attendee'),
+    path('activate/webinar-date/<int:webinar_date_id>/', views.activate_webinar_date_view, name='activate_webinar_date'),
+    path('activate/bundle-date/<int:bundle_date_id>/', views.activate_bundle_date_view, name='activate_bundle_date'),
+    path('api/cron/activate-pending/', views.cron_activate_pending, name='cron_activate_pending'),
+    
     # REST API
     path('', include(router.urls)),
 ]

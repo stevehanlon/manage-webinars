@@ -54,6 +54,11 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Attendees</h5>
                 <div>
+                    {% if attendees %}
+                    <button class="btn btn-sm btn-warning me-2" onclick="activateAllAttendees({{ webinar_date.id }})" id="activate-all-btn">
+                        <i class="bi bi-lightning-charge"></i> Activate All
+                    </button>
+                    {% endif %}
                     <a href="{% url 'attendee_create' webinar_date.id %}" class="btn btn-sm btn-primary me-2">
                         <i class="bi bi-person-plus"></i> Add Attendee
                     </a>
@@ -69,6 +74,7 @@
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Registered</th>
+                                <th>Activation Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -84,7 +90,27 @@
                                 <td>{{ attendee.email }}</td>
                                 <td>{{ attendee.created_at|date:"M d, Y H:i" }}</td>
                                 <td>
-                                    <div class="badge bg-secondary">Actions TBD</div>
+                                    {% if attendee.activation_status == "Sent" %}
+                                    <span class="badge bg-success">{{ attendee.activation_status }}</span>
+                                    {% elif attendee.activation_status == "Failed" %}
+                                    <span class="badge bg-danger" title="{{ attendee.activation_error }}">{{ attendee.activation_status }}</span>
+                                    {% elif attendee.activation_status == "Pending" %}
+                                    <span class="badge bg-warning">{{ attendee.activation_status }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ attendee.activation_status }}</span>
+                                    {% endif %}
+                                    {% if attendee.activation_sent_at %}
+                                    <small class="text-muted d-block">{{ attendee.activation_sent_at|date:"M d, H:i" }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-warning" 
+                                            onclick="activateAttendee({{ attendee.id }})" 
+                                            id="activate-btn-{{ attendee.id }}"
+                                            {% if attendee.activation_sent_at and attendee.activation_success %}disabled{% endif %}>
+                                        <i class="bi bi-lightning-charge"></i> 
+                                        {% if attendee.activation_sent_at %}Re-activate{% else %}Activate{% endif %}
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -128,4 +154,94 @@
         </div>
     </div>
 </div>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function activateAttendee(attendeeId) {
+    const button = document.getElementById(`activate-btn-${attendeeId}`);
+    const originalText = button.innerHTML;
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Activating...';
+    
+    fetch(`/activate/attendee/${attendeeId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Refresh the page to show updated status
+            location.reload();
+        } else {
+            alert(`Activation failed: ${data.message}`);
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while activating the attendee.');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+
+function activateAllAttendees(webinarDateId) {
+    const button = document.getElementById('activate-all-btn');
+    const originalText = button.innerHTML;
+    
+    if (!confirm('Are you sure you want to activate grant offers for all attendees? This will send activation requests to Kajabi for all attendees.')) {
+        return;
+    }
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Activating All...';
+    
+    fetch(`/activate/webinar-date/${webinarDateId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success || data.success_count > 0) {
+            // Show summary and refresh page
+            alert(`Activation completed!\nSuccessful: ${data.success_count}\nFailed: ${data.failure_count}`);
+            location.reload();
+        } else {
+            alert(`Activation failed: ${data.message}`);
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while activating attendees.');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+</script>
 {% endblock %}

@@ -561,3 +561,182 @@ def bundle_date_delete(request, pk):
         return redirect('bundle_detail', pk=bundle_id)
     
     return render(request, 'webinars/bundle_date_confirm_delete.html', {'bundle_date': bundle_date})
+
+
+# Activation Views
+@login_required
+def activate_attendee_view(request, attendee_id):
+    """Activate grant offer for a single attendee."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    # Try to get regular attendee first
+    attendee = None
+    try:
+        attendee = Attendee.objects.get(pk=attendee_id, deleted_at=None)
+    except Attendee.DoesNotExist:
+        # Try bundle attendee
+        try:
+            attendee = BundleAttendee.objects.get(pk=attendee_id, deleted_at=None)
+        except BundleAttendee.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Attendee not found'}, status=404)
+    
+    # Import and use activation service
+    from .activation_service import activate_attendee
+    success, message = activate_attendee(attendee)
+    
+    if success:
+        messages.success(request, message)
+        return JsonResponse({'success': True, 'message': message})
+    else:
+        messages.error(request, message)
+        return JsonResponse({'success': False, 'message': message}, status=400)
+
+
+@login_required
+def activate_webinar_date_view(request, webinar_date_id):
+    """Activate grant offers for all attendees of a webinar date."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    webinar_date = get_object_or_404(WebinarDate, pk=webinar_date_id, deleted_at=None)
+    
+    # Import and use activation service
+    from .activation_service import activate_webinar_date_attendees
+    success_count, failure_count, activation_messages = activate_webinar_date_attendees(webinar_date)
+    
+    # Create summary message
+    total = success_count + failure_count
+    if total == 0:
+        message = "No attendees found to activate."
+    else:
+        message = f"Processed {total} attendees: {success_count} successful, {failure_count} failed."
+    
+    if failure_count == 0 and success_count > 0:
+        messages.success(request, message)
+        return JsonResponse({
+            'success': True, 
+            'message': message,
+            'details': activation_messages,
+            'success_count': success_count,
+            'failure_count': failure_count
+        })
+    elif success_count > 0:
+        messages.warning(request, message)
+        return JsonResponse({
+            'success': True, 
+            'message': message,
+            'details': activation_messages,
+            'success_count': success_count,
+            'failure_count': failure_count
+        })
+    else:
+        messages.error(request, message)
+        return JsonResponse({
+            'success': False, 
+            'message': message,
+            'details': activation_messages,
+            'success_count': success_count,
+            'failure_count': failure_count
+        }, status=400)
+
+
+@csrf_exempt
+def cron_activate_pending(request):
+    """
+    Cron job endpoint to activate all pending attendees.
+    Should be called periodically (e.g., every hour) by a cron job.
+    """
+    if request.method not in ['GET', 'POST']:
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    # Import and use activation service
+    from .activation_service import activate_pending_attendees
+    success_count, failure_count, activation_messages = activate_pending_attendees()
+    
+    # Create summary message
+    total = success_count + failure_count
+    if total == 0:
+        message = "No attendees found needing activation."
+    else:
+        message = f"Processed {total} attendees: {success_count} successful, {failure_count} failed."
+    
+    # Log the results
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Cron activation completed: {message}")
+    
+    return JsonResponse({
+        'success': True,
+        'message': message,
+        'details': activation_messages,
+        'success_count': success_count,
+        'failure_count': failure_count,
+        'timestamp': timezone.now().isoformat()
+    })
+
+
+@login_required
+def activate_bundle_date_view(request, bundle_date_id):
+    """Activate grant offers for all attendees of a bundle date."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    bundle_date = get_object_or_404(BundleDate, pk=bundle_date_id, deleted_at=None)
+    
+    # Import and use activation service
+    from .activation_service import KajabiActivationService
+    service = KajabiActivationService()
+    
+    attendees = bundle_date.active_attendees()
+    success_count = 0
+    failure_count = 0
+    activation_messages = []
+    
+    for attendee in attendees:
+        # Skip if already activated
+        if attendee.activation_sent_at:
+            activation_messages.append(f"Skipped {attendee.email} (already activated)")
+            continue
+        
+        success, message = service.activate_attendee(attendee)
+        if success:
+            success_count += 1
+        else:
+            failure_count += 1
+        activation_messages.append(message)
+    
+    # Create summary message
+    total = success_count + failure_count
+    if total == 0:
+        message = "No attendees found to activate."
+    else:
+        message = f"Processed {total} attendees: {success_count} successful, {failure_count} failed."
+    
+    if failure_count == 0 and success_count > 0:
+        messages.success(request, message)
+        return JsonResponse({
+            'success': True, 
+            'message': message,
+            'details': activation_messages,
+            'success_count': success_count,
+            'failure_count': failure_count
+        })
+    elif success_count > 0:
+        messages.warning(request, message)
+        return JsonResponse({
+            'success': True, 
+            'message': message,
+            'details': activation_messages,
+            'success_count': success_count,
+            'failure_count': failure_count
+        })
+    else:
+        messages.error(request, message)
+        return JsonResponse({
+            'success': False, 
+            'message': message,
+            'details': activation_messages,
+            'success_count': success_count,
+            'failure_count': failure_count
+        }, status=400)

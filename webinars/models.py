@@ -122,12 +122,38 @@ class Attendee(BaseModel):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField()
+    activation_sent_at = models.DateTimeField(null=True, blank=True, help_text="When the Kajabi grant offer activation was sent")
+    activation_success = models.BooleanField(null=True, blank=True, help_text="Whether the activation was successful")
+    activation_error = models.TextField(blank=True, help_text="Error message if activation failed")
     
     class Meta:
         unique_together = ['webinar_date', 'email']
     
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.email}"
+    
+    @property
+    def needs_activation(self):
+        """Check if this attendee needs activation (webinar ended 2+ hours ago)."""
+        if self.activation_sent_at or not self.webinar_date.date_time:
+            return False
+        
+        # Check if webinar ended 2+ hours ago
+        webinar_end_time = self.webinar_date.date_time + timezone.timedelta(hours=2)
+        return timezone.now() >= webinar_end_time
+    
+    @property
+    def activation_status(self):
+        """Return a human-readable activation status."""
+        if not self.activation_sent_at:
+            if self.needs_activation:
+                return "Pending"
+            else:
+                return "Not due"
+        elif self.activation_success:
+            return "Sent"
+        else:
+            return "Failed"
 
 
 class WebinarBundle(BaseModel):
@@ -216,9 +242,41 @@ class BundleAttendee(BaseModel):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField()
+    activation_sent_at = models.DateTimeField(null=True, blank=True, help_text="When the Kajabi grant offer activation was sent")
+    activation_success = models.BooleanField(null=True, blank=True, help_text="Whether the activation was successful")
+    activation_error = models.TextField(blank=True, help_text="Error message if activation failed")
     
     class Meta:
         unique_together = ['bundle_date', 'email']
     
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.email} (Bundle)"
+    
+    @property
+    def needs_activation(self):
+        """Check if this attendee needs activation (latest webinar ended 2+ hours ago)."""
+        if self.activation_sent_at:
+            return False
+        
+        # Get the latest webinar end time for this bundle date
+        webinars_on_date = self.bundle_date.get_webinars_on_date()
+        if not webinars_on_date.exists():
+            return False
+        
+        # Find the latest webinar time and add 2 hours
+        latest_webinar = webinars_on_date.order_by('-date_time').first()
+        webinar_end_time = latest_webinar.date_time + timezone.timedelta(hours=2)
+        return timezone.now() >= webinar_end_time
+    
+    @property
+    def activation_status(self):
+        """Return a human-readable activation status."""
+        if not self.activation_sent_at:
+            if self.needs_activation:
+                return "Pending"
+            else:
+                return "Not due"
+        elif self.activation_success:
+            return "Sent"
+        else:
+            return "Failed"
