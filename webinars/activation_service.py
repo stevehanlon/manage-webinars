@@ -28,8 +28,12 @@ class KajabiActivationService:
         
         try:
             # Prepare payload for Kajabi webhook
+            # Combine first and last name as Kajabi expects a 'name' field
+            full_name = f"{attendee.first_name} {attendee.last_name}".strip()
+            
             payload = {
                 'email': attendee.email,
+                'name': full_name,
                 'first_name': attendee.first_name,
                 'last_name': attendee.last_name,
                 'activation_type': attendee_type,
