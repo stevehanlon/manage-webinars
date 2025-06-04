@@ -3,8 +3,6 @@ import logging
 from datetime import datetime, timedelta
 from dateutil.parser import parse
 from django.utils import timezone
-from django.core.mail import send_mail
-from django.conf import settings
 import json
 
 logger = logging.getLogger(__name__)
@@ -358,24 +356,9 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
 
 
 def send_webhook_error_email(to_email, error_message, webhook_data):
-    """Send an email notification about webhook processing errors."""
-    subject = "Kajabi Webhook Processing Error"
+    """Send an email notification about webhook processing errors using enhanced email service."""
+    # Import the enhanced email function
+    from .email_service import send_webhook_error_email as enhanced_send_webhook_error_email
     
-    # Format webhook data as a pretty-printed JSON string
-    webhook_json = json.dumps(webhook_data, indent=2)
-    
-    message = f"""
-An error occurred while processing a Kajabi webhook:
-
-{error_message}
-
-Original webhook data:
-{webhook_json}
-
-Please investigate this issue manually.
-"""
-    
-    from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = [to_email]
-    
-    send_mail(subject, message, from_email, recipient_list, fail_silently=False)
+    # Use the enhanced email service
+    enhanced_send_webhook_error_email(to_email, error_message, webhook_data)

@@ -147,7 +147,10 @@ The application includes Microsoft 365 calendar integration for automatically se
 
 ### Setup Requirements
 1. Create an Azure App Registration at https://portal.azure.com
-2. Add required permissions: `Calendars.ReadWrite` and `User.Read`
+2. Add required permissions: 
+   - `Calendars.ReadWrite` (for calendar invites)
+   - `Mail.Send` (for enhanced email delivery)
+   - `User.Read` (for user information)
 3. Configure credentials in the Settings -> MS365 Settings page
 4. Create "calendar" group: `python manage.py create_calendar_group`
 5. Add users to the calendar group via Django admin
@@ -156,6 +159,26 @@ The application includes Microsoft 365 calendar integration for automatically se
 - Users must be in the "calendar" group to receive invites
 - Only users with email addresses will receive invites
 - Manage group membership in Django Admin -> Groups -> calendar
+
+## Enhanced Email Service
+The application includes an enhanced email service that provides reliable email delivery for error notifications and other system emails:
+
+### Features
+- **MS365 Graph API integration** for reliable email delivery
+- **Automatic fallback** to Django's email backend if MS365 fails
+- **Enhanced error reporting** with detailed webhook data
+- **Configurable email preferences** (MS365 first, then SMTP fallback)
+
+### Email Types
+- **Webhook error notifications** sent to webinar/bundle error_notification_email
+- **System notifications** for various application events
+- **Automatic retry mechanism** with fallback options
+
+### Configuration
+- Uses the same MS365Settings as calendar integration
+- Requires `Mail.Send` permission in Azure App Registration
+- Falls back to Django's email backend (SMTP) if MS365 is unavailable
+- Error emails include full webhook data for debugging
 
 ## Important Notes
 - The README.md should be kept up to date as functionality is added to the project
