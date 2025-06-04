@@ -1,0 +1,97 @@
+{% extends 'base/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block title %}Email Test - Kajabi Webinar Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'settings_dashboard' %}">Settings</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Email Test</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>Email Test</h1>
+        <p class="text-muted">Test your email configuration by sending a test email to any address.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Send Test Email</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% bootstrap_form form %}
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-envelope"></i> Send Test Email
+                        </button>
+                        <a href="{% url 'settings_dashboard' %}" class="btn btn-outline-secondary">Back to Settings</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">How It Works</h5>
+            </div>
+            <div class="card-body">
+                <p class="small">The email test uses the enhanced email service with the following priority:</p>
+                <ol class="small">
+                    <li><strong>MS365 Graph API</strong> (if configured)</li>
+                    <li><strong>Django Email Backend</strong> (SMTP fallback)</li>
+                </ol>
+                
+                <h6 class="mt-3">What gets tested:</h6>
+                <ul class="small">
+                    <li>Email service configuration</li>
+                    <li>MS365 Graph API connectivity</li>
+                    <li>SMTP fallback mechanism</li>
+                    <li>Email delivery reliability</li>
+                </ul>
+                
+                <div class="alert alert-info mt-3">
+                    <small><strong>Note:</strong> In development mode, emails are sent to the console. Check your terminal for output.</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Troubleshooting</h5>
+            </div>
+            <div class="card-body">
+                <h6>If test emails fail:</h6>
+                <ul class="small">
+                    <li>Check MS365 Settings configuration</li>
+                    <li>Verify Azure App permissions include <code>Mail.Send</code></li>
+                    <li>Check Django email settings for SMTP</li>
+                    <li>Review server logs for detailed errors</li>
+                </ul>
+                
+                <h6 class="mt-3">Email delivery:</h6>
+                <ul class="small">
+                    <li>Check recipient's spam/junk folder</li>
+                    <li>Verify email address is correct</li>
+                    <li>Some email providers may delay delivery</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

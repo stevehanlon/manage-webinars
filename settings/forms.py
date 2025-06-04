@@ -129,3 +129,26 @@ class MS365SettingsForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+
+class EmailTestForm(forms.Form):
+    email = forms.EmailField(
+        label="Test Email Address",
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter email address to send test email'
+        }),
+        help_text="Enter the email address where you want to send a test email"
+    )
+    
+    message = forms.CharField(
+        label="Test Message (Optional)",
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Enter a custom test message or leave blank for default'
+        }),
+        required=False,
+        help_text="Optional custom message. If left blank, a standard test message will be sent."
+    )

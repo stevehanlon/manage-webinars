@@ -2,8 +2,9 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.utils import timezone
 from .models import ZoomSettings, SalesforceSettings, MS365Settings
-from .forms import ZoomSettingsForm, SalesforceSettingsForm, MS365SettingsForm
+from .forms import ZoomSettingsForm, SalesforceSettingsForm, MS365SettingsForm, EmailTestForm
 
 
 @login_required
@@ -105,4 +106,72 @@ def ms365_settings_view(request):
     return render(request, 'settings/ms365_settings.html', {
         'form': form,
         'ms365_settings': ms365_settings
+    })
+
+
+@login_required
+def email_test_view(request):
+    """Email test page for testing email delivery."""
+    if request.method == 'POST':
+        form = EmailTestForm(request.POST)
+        if form.is_valid():
+            test_email = form.cleaned_data['email']
+            custom_message = form.cleaned_data.get('message', '').strip()
+            
+            # Use custom message or default
+            if custom_message:
+                message = custom_message
+            else:
+                message = """Hello World!
+
+This is a test email from the Kajabi Webinar Manager system.
+
+If you're receiving this email, it means:
+✓ Email delivery is working correctly
+✓ Your email configuration is properly set up
+✓ The enhanced email service is functioning
+
+System Information:
+- Sent via enhanced email service with MS365 Graph API support
+- Automatic fallback to SMTP if MS365 is unavailable
+- Test initiated by: {user}
+- Test time: {timestamp}
+
+Have a great day!
+
+---
+Kajabi Webinar Manager
+""".format(
+                user=request.user.username,
+                timestamp=timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+            )
+            
+            try:
+                # Import the enhanced email service
+                from webinars.email_service import send_notification_email
+                
+                # Send the test email
+                send_notification_email(
+                    to_email=test_email,
+                    subject="Test Email from Kajabi Webinar Manager",
+                    message=message
+                )
+                
+                messages.success(
+                    request, 
+                    f'Test email sent successfully to {test_email}! Check your inbox (and spam folder).'
+                )
+                
+            except Exception as e:
+                messages.error(
+                    request,
+                    f'Failed to send test email to {test_email}: {str(e)}'
+                )
+            
+            return redirect('email_test')
+    else:
+        form = EmailTestForm()
+    
+    return render(request, 'settings/email_test.html', {
+        'form': form
     })
