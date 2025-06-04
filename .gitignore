@@ -164,3 +164,6 @@ staticfiles/
 secrets.json
 .env.local
 .env.production
+
+# Example files
+example.json
