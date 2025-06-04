@@ -90,13 +90,14 @@ def find_bundle_by_form_title(form_title):
     return None
 
 
-def find_webinar_date(webinar, date_time):
+def find_or_create_webinar_date(webinar, date_time, auto_create=True):
     """
     Find a webinar date close to the given date and time.
     Uses fuzzy matching with a 1-hour window.
+    If not found and auto_create is True, creates a new webinar date.
     """
     if not date_time:
-        return None
+        return None, False
     
     date_time_min = date_time - timedelta(hours=1)
     date_time_max = date_time + timedelta(hours=1)
@@ -108,17 +109,28 @@ def find_webinar_date(webinar, date_time):
     )
     
     if dates.exists():
-        return dates.first()
+        return dates.first(), False
     
-    return None
+    # If no date found and auto_create is enabled, create a new one
+    if auto_create:
+        from .models import WebinarDate
+        logger.info(f"Auto-creating webinar date for {webinar.name} at {date_time}")
+        new_date = WebinarDate.objects.create(
+            webinar=webinar,
+            date_time=date_time
+        )
+        return new_date, True
+    
+    return None, False
 
 
-def find_bundle_date(bundle, date_time):
+def find_or_create_bundle_date(bundle, date_time, auto_create=True):
     """
     Find a bundle date that matches the given date.
+    If not found and auto_create is True, creates a new bundle date.
     """
     if not date_time:
-        return None
+        return None, False
     
     # Extract just the date part
     target_date = date_time.date()
@@ -129,9 +141,19 @@ def find_bundle_date(bundle, date_time):
     )
     
     if dates.exists():
-        return dates.first()
+        return dates.first(), False
     
-    return None
+    # If no date found and auto_create is enabled, create a new one
+    if auto_create:
+        from .models import BundleDate
+        logger.info(f"Auto-creating bundle date for {bundle.name} on {target_date}")
+        new_date = BundleDate.objects.create(
+            bundle=bundle,
+            date=target_date
+        )
+        return new_date, True
+    
+    return None, False
 
 
 def process_kajabi_webhook(data, request):
@@ -205,10 +227,10 @@ def process_kajabi_webhook(data, request):
         if not parsed_date:
             return False, f"Could not parse date: {date_str}", None
         
-        # Find matching webinar date
-        webinar_date = find_webinar_date(webinar, parsed_date)
+        # Find or create matching webinar date
+        webinar_date, was_created = find_or_create_webinar_date(webinar, parsed_date)
         if not webinar_date:
-            return False, f"No matching webinar date found near: {parsed_date}", None
+            return False, f"Could not find or create webinar date for: {parsed_date}", None
         
         # Create or update attendee
         attendee, created = Attendee.objects.get_or_create(
@@ -228,7 +250,8 @@ def process_kajabi_webhook(data, request):
             attendee.save()
         
         status = "Created" if created else "Updated"
-        return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}", attendee.id
+        date_status = " (date auto-created)" if was_created else ""
+        return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}{date_status}", attendee.id
     
     except Exception as e:
         error_message = f"Error processing webhook: {str(e)}"
@@ -272,10 +295,10 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
         if not parsed_date:
             return False, f"Could not parse date: {date_str}", None
         
-        # Find matching bundle date
-        bundle_date = find_bundle_date(bundle, parsed_date)
+        # Find or create matching bundle date
+        bundle_date, was_created = find_or_create_bundle_date(bundle, parsed_date)
         if not bundle_date:
-            return False, f"No matching bundle date found near: {parsed_date}", None
+            return False, f"Could not find or create bundle date for: {parsed_date}", None
         
         # Create or update bundle attendee
         attendee, created = BundleAttendee.objects.get_or_create(
@@ -295,7 +318,8 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
             attendee.save()
         
         status = "Created" if created else "Updated"
-        return True, f"{status} bundle attendee for {bundle.name} on {bundle_date.date}", attendee.id
+        date_status = " (date auto-created)" if was_created else ""
+        return True, f"{status} bundle attendee for {bundle.name} on {bundle_date.date}{date_status}", attendee.id
         
     except Exception as e:
         error_message = f"Error processing bundle webhook: {str(e)}"
