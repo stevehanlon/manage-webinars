@@ -92,14 +92,14 @@ def find_bundle_by_form_title(form_title):
     return None
 
 
-def find_or_create_webinar_date(webinar, date_time, auto_create=True):
+def find_webinar_date(webinar, date_time):
     """
     Find a webinar date close to the given date and time.
     Uses fuzzy matching with a 1-hour window.
-    If not found and auto_create is True, creates a new webinar date.
+    Returns the found date or None if not found.
     """
     if not date_time:
-        return None, False
+        return None
     
     date_time_min = date_time - timedelta(hours=1)
     date_time_max = date_time + timedelta(hours=1)
@@ -111,37 +111,18 @@ def find_or_create_webinar_date(webinar, date_time, auto_create=True):
     )
     
     if dates.exists():
-        return dates.first(), False
+        return dates.first()
     
-    # If no date found and auto_create is enabled, create a new one
-    if auto_create:
-        from .models import WebinarDate
-        logger.info(f"Auto-creating webinar date for {webinar.name} at {date_time}")
-        new_date = WebinarDate.objects.create(
-            webinar=webinar,
-            date_time=date_time
-        )
-        
-        # Send calendar invite for auto-created date
-        try:
-            from .ms365_service import MS365CalendarService
-            ms365_service = MS365CalendarService()
-            ms365_service.create_webinar_meeting(new_date, was_auto_created=True)
-        except Exception as e:
-            logger.error(f"Failed to create calendar invite: {str(e)}")
-        
-        return new_date, True
-    
-    return None, False
+    return None
 
 
-def find_or_create_bundle_date(bundle, date_time, auto_create=True):
+def find_bundle_date(bundle, date_time):
     """
     Find a bundle date that matches the given date.
-    If not found and auto_create is True, creates a new bundle date.
+    Returns the found date or None if not found.
     """
     if not date_time:
-        return None, False
+        return None
     
     # Extract just the date part
     target_date = date_time.date()
@@ -152,28 +133,56 @@ def find_or_create_bundle_date(bundle, date_time, auto_create=True):
     )
     
     if dates.exists():
-        return dates.first(), False
+        return dates.first()
     
-    # If no date found and auto_create is enabled, create a new one
-    if auto_create:
-        from .models import BundleDate
-        logger.info(f"Auto-creating bundle date for {bundle.name} on {target_date}")
-        new_date = BundleDate.objects.create(
-            bundle=bundle,
-            date=target_date
+    return None
+
+
+def send_unrecognized_date_error_email(error_email, webinar_or_bundle_name, date_str, parsed_date, webhook_data, is_bundle=False):
+    """Send an error email when a booking is made for an unrecognized date."""
+    from .email_service import send_notification_email
+    
+    entity_type = "bundle" if is_bundle else "webinar"
+    
+    subject = f"Booking for Unrecognized {entity_type.title()} Date - {webinar_or_bundle_name}"
+    
+    message = f"""
+BOOKING FOR UNRECOGNIZED DATE RECEIVED
+
+A booking has been received for a {entity_type} date that does not exist in the system.
+
+{entity_type.title()} Details:
+- Name: {webinar_or_bundle_name}
+- Requested Date: {date_str}
+- Parsed Date: {parsed_date.strftime('%Y-%m-%d %H:%M:%S %Z') if parsed_date else 'Could not parse'}
+
+Attendee Information:
+- Name: {webhook_data.get('first_name', 'N/A')} {webhook_data.get('last_name', 'N/A')}
+- Email: {webhook_data.get('email', 'N/A')}
+
+ACTION REQUIRED:
+1. Create the missing {entity_type} date in the system
+2. Manually register this attendee for the correct date
+
+Raw Webhook Data:
+{json.dumps(webhook_data, indent=2)}
+
+This booking was rejected because auto-creation of dates has been disabled.
+Please create the date manually and register the attendee.
+
+---
+Kajabi Webinar Manager
+    """
+    
+    try:
+        send_notification_email(
+            to_email=error_email,
+            subject=subject,
+            message=message
         )
-        
-        # Send calendar invite for auto-created date
-        try:
-            from .ms365_service import MS365CalendarService
-            ms365_service = MS365CalendarService()
-            ms365_service.create_bundle_meeting(new_date, was_auto_created=True)
-        except Exception as e:
-            logger.error(f"Failed to create calendar invite: {str(e)}")
-        
-        return new_date, True
-    
-    return None, False
+        logger.info(f"Sent unrecognized date error email to {error_email} for {entity_type} {webinar_or_bundle_name}")
+    except Exception as e:
+        logger.error(f"Failed to send unrecognized date error email: {str(e)}")
 
 
 def process_kajabi_webhook(data, request):
@@ -247,10 +256,27 @@ def process_kajabi_webhook(data, request):
         if not parsed_date:
             return False, f"Could not parse date: {date_str}", None
         
-        # Find or create matching webinar date
-        webinar_date, was_created = find_or_create_webinar_date(webinar, parsed_date)
+        # Find matching webinar date (no auto-creation)
+        webinar_date = find_webinar_date(webinar, parsed_date)
         if not webinar_date:
-            return False, f"Could not find or create webinar date for: {parsed_date}", None
+            # Send error email for unrecognized date
+            attendee_data = {
+                'first_name': first_name,
+                'last_name': last_name,
+                'email': email,
+                'event_type': event_type,
+                'date_str': date_str,
+                'parsed_date': parsed_date.isoformat() if parsed_date else None
+            }
+            send_unrecognized_date_error_email(
+                error_email=webinar.error_notification_email,
+                webinar_or_bundle_name=webinar.name,
+                date_str=date_str,
+                parsed_date=parsed_date,
+                webhook_data=attendee_data,
+                is_bundle=False
+            )
+            return False, f"No webinar date found for {date_str}. Error email sent to {webinar.error_notification_email}.", None
         
         # Create or update attendee
         attendee, created = Attendee.objects.get_or_create(
@@ -270,8 +296,7 @@ def process_kajabi_webhook(data, request):
             attendee.save()
         
         status = "Created" if created else "Updated"
-        date_status = " (date auto-created)" if was_created else ""
-        return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}{date_status}", attendee.id
+        return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}", attendee.id
     
     except Exception as e:
         error_message = f"Error processing webhook: {str(e)}"
@@ -315,10 +340,27 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
         if not parsed_date:
             return False, f"Could not parse date: {date_str}", None
         
-        # Find or create matching bundle date
-        bundle_date, was_created = find_or_create_bundle_date(bundle, parsed_date)
+        # Find matching bundle date (no auto-creation)
+        bundle_date = find_bundle_date(bundle, parsed_date)
         if not bundle_date:
-            return False, f"Could not find or create bundle date for: {parsed_date}", None
+            # Send error email for unrecognized date
+            attendee_data = {
+                'first_name': first_name,
+                'last_name': last_name,
+                'email': email,
+                'webhook_type': webhook_type,
+                'date_str': date_str,
+                'parsed_date': parsed_date.isoformat() if parsed_date else None
+            }
+            send_unrecognized_date_error_email(
+                error_email=bundle.error_notification_email,
+                webinar_or_bundle_name=bundle.name,
+                date_str=date_str,
+                parsed_date=parsed_date,
+                webhook_data=attendee_data,
+                is_bundle=True
+            )
+            return False, f"No bundle date found for {date_str}. Error email sent to {bundle.error_notification_email}.", None
         
         # Create or update bundle attendee
         attendee, created = BundleAttendee.objects.get_or_create(
@@ -338,8 +380,7 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
             attendee.save()
         
         status = "Created" if created else "Updated"
-        date_status = " (date auto-created)" if was_created else ""
-        return True, f"{status} bundle attendee for {bundle.name} on {bundle_date.date}{date_status}", attendee.id
+        return True, f"{status} bundle attendee for {bundle.name} on {bundle_date.date}", attendee.id
         
     except Exception as e:
         error_message = f"Error processing bundle webhook: {str(e)}"
