@@ -22,7 +22,7 @@ class WebinarAdmin(admin.ModelAdmin):
     inlines = [WebinarDateInline]
     fieldsets = (
         (None, {
-            'fields': ('name', 'kajabi_grant_activation_hook_url')
+            'fields': ('name', 'aliases', 'kajabi_grant_activation_hook_url')
         }),
         ('Webhook Configuration', {
             'fields': ('form_date_field', 'checkout_date_field', 'error_notification_email'),
@@ -116,7 +116,7 @@ class WebinarBundleAdmin(admin.ModelAdmin):
     inlines = [BundleDateInline]
     fieldsets = (
         (None, {
-            'fields': ('name', 'kajabi_grant_activation_hook_url')
+            'fields': ('name', 'aliases', 'kajabi_grant_activation_hook_url')
         }),
         ('Webhook Configuration', {
             'fields': ('form_date_field', 'checkout_date_field', 'error_notification_email'),

@@ -5,10 +5,15 @@ from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, B
 class WebinarForm(forms.ModelForm):
     class Meta:
         model = Webinar
-        fields = ['name', 'kajabi_grant_activation_hook_url', 'form_date_field', 
+        fields = ['name', 'aliases', 'kajabi_grant_activation_hook_url', 'form_date_field', 
                  'checkout_date_field', 'error_notification_email']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'aliases': forms.Textarea(attrs={
+                'class': 'form-control', 
+                'rows': 3,
+                'placeholder': 'Enter alternative names (one per line)'
+            }),
             'kajabi_grant_activation_hook_url': forms.URLInput(attrs={'class': 'form-control'}),
             'form_date_field': forms.TextInput(attrs={'class': 'form-control'}),
             'checkout_date_field': forms.TextInput(attrs={'class': 'form-control'}),
@@ -40,10 +45,15 @@ class AttendeeForm(forms.ModelForm):
 class WebinarBundleForm(forms.ModelForm):
     class Meta:
         model = WebinarBundle
-        fields = ['name', 'kajabi_grant_activation_hook_url', 'form_date_field', 
+        fields = ['name', 'aliases', 'kajabi_grant_activation_hook_url', 'form_date_field', 
                  'checkout_date_field', 'error_notification_email']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'aliases': forms.Textarea(attrs={
+                'class': 'form-control', 
+                'rows': 3,
+                'placeholder': 'Enter alternative names (one per line)'
+            }),
             'kajabi_grant_activation_hook_url': forms.URLInput(attrs={'class': 'form-control'}),
             'form_date_field': forms.TextInput(attrs={'class': 'form-control'}),
             'checkout_date_field': forms.TextInput(attrs={'class': 'form-control'}),

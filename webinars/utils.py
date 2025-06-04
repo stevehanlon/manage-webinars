@@ -49,21 +49,23 @@ def parse_webinar_date(date_str):
 def find_webinar_by_form_title(form_title):
     """
     Find a webinar that matches a form title.
-    This is a simple match based on substring for now.
+    Checks main name and aliases for exact and partial matches.
     """
     from .models import Webinar
     
     webinars = Webinar.objects.filter(deleted_at=None)
     
-    # First try exact match
+    # First try exact match against all names (main name + aliases)
     for webinar in webinars:
-        if webinar.name.lower() == form_title.lower():
-            return webinar
+        for name in webinar.get_all_names():
+            if name.lower() == form_title.lower():
+                return webinar
     
-    # Then try partial match
+    # Then try partial match against all names
     for webinar in webinars:
-        if webinar.name.lower() in form_title.lower() or form_title.lower() in webinar.name.lower():
-            return webinar
+        for name in webinar.get_all_names():
+            if name.lower() in form_title.lower() or form_title.lower() in name.lower():
+                return webinar
     
     return None
 
@@ -71,21 +73,23 @@ def find_webinar_by_form_title(form_title):
 def find_bundle_by_form_title(form_title):
     """
     Find a bundle that matches a form title.
-    This is a simple match based on substring for now.
+    Checks main name and aliases for exact and partial matches.
     """
     from .models import WebinarBundle
     
     bundles = WebinarBundle.objects.filter(deleted_at=None)
     
-    # First try exact match
+    # First try exact match against all names (main name + aliases)
     for bundle in bundles:
-        if bundle.name.lower() == form_title.lower():
-            return bundle
+        for name in bundle.get_all_names():
+            if name.lower() == form_title.lower():
+                return bundle
     
-    # Then try partial match
+    # Then try partial match against all names
     for bundle in bundles:
-        if bundle.name.lower() in form_title.lower() or form_title.lower() in bundle.name.lower():
-            return bundle
+        for name in bundle.get_all_names():
+            if name.lower() in form_title.lower() or form_title.lower() in name.lower():
+                return bundle
     
     return None
 

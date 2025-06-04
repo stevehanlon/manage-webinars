@@ -26,6 +26,10 @@ class BaseModel(models.Model):
 class Webinar(BaseModel):
     """Model representing a webinar series."""
     name = models.CharField(max_length=255)
+    aliases = models.TextField(
+        blank=True,
+        help_text="Alternative names for this webinar (one per line). Used to match Kajabi offers/forms with different names."
+    )
     kajabi_grant_activation_hook_url = models.URLField(max_length=500)
     form_date_field = models.CharField(max_length=255, default="Webinar options", 
                                       help_text="Field name in Kajabi form for date selection")
@@ -43,6 +47,15 @@ class Webinar(BaseModel):
     def active_dates(self):
         """Return all active (non-deleted) webinar dates."""
         return self.webinardate_set.filter(deleted_at=None)
+    
+    def get_all_names(self):
+        """Return a list of all names including the main name and aliases."""
+        names = [self.name]
+        if self.aliases:
+            # Split aliases by newlines and add non-empty ones
+            aliases = [alias.strip() for alias in self.aliases.split('\n') if alias.strip()]
+            names.extend(aliases)
+        return names
 
 
 class WebinarDate(BaseModel):
@@ -120,6 +133,10 @@ class Attendee(BaseModel):
 class WebinarBundle(BaseModel):
     """Model representing a bundle of webinars that run on the same date."""
     name = models.CharField(max_length=255)
+    aliases = models.TextField(
+        blank=True,
+        help_text="Alternative names for this bundle (one per line). Used to match Kajabi offers/forms with different names."
+    )
     kajabi_grant_activation_hook_url = models.URLField(max_length=500)
     form_date_field = models.CharField(max_length=255, default="Bundle options", 
                                       help_text="Field name in Kajabi form for date selection")
@@ -137,6 +154,15 @@ class WebinarBundle(BaseModel):
     def active_dates(self):
         """Return all active (non-deleted) bundle dates."""
         return self.bundledate_set.filter(deleted_at=None)
+    
+    def get_all_names(self):
+        """Return a list of all names including the main name and aliases."""
+        names = [self.name]
+        if self.aliases:
+            # Split aliases by newlines and add non-empty ones
+            aliases = [alias.strip() for alias in self.aliases.split('\n') if alias.strip()]
+            names.extend(aliases)
+        return names
 
 
 class BundleDate(BaseModel):
