@@ -740,3 +740,32 @@ def activate_bundle_date_view(request, bundle_date_id):
             'success_count': success_count,
             'failure_count': failure_count
         }, status=400)
+
+
+@login_required
+def send_calendar_invite_view(request, webinar_date_id):
+    """Send calendar invite for a webinar date."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    webinar_date = get_object_or_404(WebinarDate, pk=webinar_date_id, deleted_at=None)
+    
+    try:
+        # Import and use MS365 service
+        from .ms365_service import MS365CalendarService
+        ms365_service = MS365CalendarService()
+        
+        # Send calendar invite
+        success, message = ms365_service.send_manual_calendar_invite(webinar_date)
+        
+        if success:
+            messages.success(request, message)
+            return JsonResponse({'success': True, 'message': message})
+        else:
+            messages.error(request, message)
+            return JsonResponse({'success': False, 'message': message}, status=400)
+            
+    except Exception as e:
+        error_msg = f"Error sending calendar invite: {str(e)}"
+        messages.error(request, error_msg)
+        return JsonResponse({'success': False, 'message': error_msg}, status=500)

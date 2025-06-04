@@ -54,6 +54,9 @@ urlpatterns = [
     path('activate/bundle-date/<int:bundle_date_id>/', views.activate_bundle_date_view, name='activate_bundle_date'),
     path('api/cron/activate-pending/', views.cron_activate_pending, name='cron_activate_pending'),
     
+    # Calendar Invite URLs
+    path('send-calendar-invite/<int:webinar_date_id>/', views.send_calendar_invite_view, name='send_calendar_invite'),
+    
     # REST API
     path('', include(router.urls)),
 ]

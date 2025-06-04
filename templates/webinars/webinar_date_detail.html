@@ -40,6 +40,15 @@
             {% if not webinar_date.zoom_meeting_id %}
             <a href="{% url 'create_zoom_webinar' webinar_date.id %}" class="btn btn-outline-info">Create Zoom Webinar</a>
             {% endif %}
+            <button class="btn btn-outline-success" onclick="sendCalendarInvite({{ webinar_date.id }})" id="calendar-invite-btn"
+                    {% if webinar_date.calendar_invite_sent_at and webinar_date.calendar_invite_success %}disabled{% endif %}>
+                <i class="bi bi-calendar-plus"></i> 
+                {% if webinar_date.calendar_invite_sent_at %}
+                    {% if webinar_date.calendar_invite_success %}Calendar Sent{% else %}Resend Calendar{% endif %}
+                {% else %}
+                    Send Calendar Invite
+                {% endif %}
+            </button>
             <a href="{% url 'webinar_date_update' webinar_date.id %}" class="btn btn-outline-primary">Edit Date</a>
             {% if not webinar_date.has_attendees %}
             <a href="{% url 'webinar_date_delete' webinar_date.id %}" class="btn btn-outline-danger">Delete Date</a>
@@ -239,6 +248,40 @@ function activateAllAttendees(webinarDateId) {
     .catch(error => {
         console.error('Error:', error);
         alert('An error occurred while activating attendees.');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+
+function sendCalendarInvite(webinarDateId) {
+    const button = document.getElementById('calendar-invite-btn');
+    const originalText = button.innerHTML;
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Sending...';
+    
+    fetch(`/send-calendar-invite/${webinarDateId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Refresh the page to show updated status
+            location.reload();
+        } else {
+            alert(`Calendar invite failed: ${data.message}`);
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while sending the calendar invite.');
         button.disabled = false;
         button.innerHTML = originalText;
     });

@@ -251,3 +251,144 @@ class MS365CalendarService:
         except Exception as e:
             logger.error(f"Error creating MS365 calendar invite: {str(e)}")
             return None
+    
+    def send_manual_calendar_invite(self, webinar_date):
+        """
+        Send calendar invite manually and track the result.
+        Returns (success, message)
+        """
+        from django.utils import timezone
+        
+        try:
+            # Use the existing method but with custom subject
+            meeting = self.create_webinar_meeting_with_custom_subject(
+                webinar_date, 
+                subject=f"Webinar: {webinar_date.webinar.name}"
+            )
+            
+            if meeting:
+                # Update tracking fields
+                webinar_date.calendar_invite_sent_at = timezone.now()
+                webinar_date.calendar_invite_success = True
+                webinar_date.calendar_invite_error = ''
+                webinar_date.save()
+                
+                return True, f"Calendar invite sent successfully for {webinar_date.webinar.name}"
+            else:
+                # Update tracking fields for failure
+                webinar_date.calendar_invite_sent_at = timezone.now()
+                webinar_date.calendar_invite_success = False
+                webinar_date.calendar_invite_error = 'Failed to create calendar invite'
+                webinar_date.save()
+                
+                return False, "Failed to create calendar invite"
+                
+        except Exception as e:
+            error_msg = f"Error sending calendar invite: {str(e)}"
+            logger.error(error_msg)
+            
+            # Update tracking fields for error
+            webinar_date.calendar_invite_sent_at = timezone.now()
+            webinar_date.calendar_invite_success = False
+            webinar_date.calendar_invite_error = error_msg
+            webinar_date.save()
+            
+            return False, error_msg
+    
+    def create_webinar_meeting_with_custom_subject(self, webinar_date, subject):
+        """Create a calendar invite for a webinar date with custom subject"""
+        if not self.settings.client_id or not self.settings.client_secret:
+            logger.info("MS365 not configured, skipping calendar invite creation")
+            return None
+            
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+            
+        # Get users in the calendar group
+        calendar_group = Group.objects.filter(name='calendar').first()
+        if not calendar_group:
+            logger.warning("Calendar group not found, skipping calendar invite creation")
+            return None
+            
+        attendees = []
+        for user in calendar_group.user_set.all():
+            if user.email:
+                attendees.append({
+                    "emailAddress": {
+                        "address": user.email,
+                        "name": user.get_full_name() or user.username
+                    },
+                    "type": "required"
+                })
+        
+        if not attendees:
+            logger.info("No users in calendar group, skipping calendar invite creation")
+            return None
+            
+        # Prepare meeting details
+        webinar = webinar_date.webinar
+        start_time = webinar_date.date_time
+        end_time = start_time + timedelta(hours=1)  # Default to 1 hour duration
+        
+        # Format times for Graph API
+        start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%S")
+        end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%S")
+        
+        # Create description
+        description = f"""
+        <h2>Webinar Details</h2>
+        <p><strong>Webinar:</strong> {webinar.name}</p>
+        <p><strong>Date/Time:</strong> {start_time.strftime('%B %d, %Y at %I:%M %p %Z')}</p>
+        <p><strong>Status:</strong> Manually sent calendar invite</p>
+        
+        <h3>Zoom Meeting Details</h3>
+        <p>Zoom meeting will be created when available.</p>
+        
+        <h3>Attendees</h3>
+        <p>View attendees in the <a href="{webinar_date.get_absolute_url()}">webinar management system</a></p>
+        """
+        
+        # Prepare request body
+        body = {
+            "subject": subject,
+            "body": {
+                "contentType": "HTML",
+                "content": description
+            },
+            "start": {
+                "dateTime": start_time_str,
+                "timeZone": "UTC"
+            },
+            "end": {
+                "dateTime": end_time_str,
+                "timeZone": "UTC"
+            },
+            "attendees": attendees,
+            "isOnlineMeeting": False,
+            "reminderMinutesBeforeStart": 15
+        }
+        
+        # Create the event
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+        
+        url = f"https://graph.microsoft.com/v1.0/users/{self.settings.owner_email}/calendar/events"
+        
+        try:
+            response = requests.post(url, headers=headers, json=body)
+            
+            if response.status_code >= 400:
+                logger.error(f"Failed to create MS365 meeting: {response.status_code}")
+                logger.error(f"Response: {response.text}")
+                return None
+                
+            meeting = response.json()
+            logger.info(f"Created manual MS365 calendar invite for {webinar.name} on {start_time}")
+            return meeting
+            
+        except Exception as e:
+            logger.error(f"Error creating manual MS365 calendar invite: {str(e)}")
+            return None

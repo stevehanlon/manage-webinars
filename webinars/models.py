@@ -63,6 +63,9 @@ class WebinarDate(BaseModel):
     webinar = models.ForeignKey(Webinar, on_delete=models.CASCADE)
     date_time = models.DateTimeField()
     zoom_meeting_id = models.CharField(max_length=100, blank=True, null=True)
+    calendar_invite_sent_at = models.DateTimeField(null=True, blank=True, help_text="When calendar invites were sent to staff")
+    calendar_invite_success = models.BooleanField(null=True, blank=True, help_text="Whether calendar invite sending was successful")
+    calendar_invite_error = models.TextField(blank=True, help_text="Error message if calendar invite failed")
     
     def __str__(self):
         return f"{self.webinar.name} - {self.date_time.strftime('%Y-%m-%d %H:%M')}"
@@ -114,6 +117,16 @@ class WebinarDate(BaseModel):
     def has_attendees(self):
         """Check if this webinar date has any attendees."""
         return self.attendee_count > 0
+    
+    @property
+    def calendar_invite_status(self):
+        """Return a human-readable calendar invite status."""
+        if not self.calendar_invite_sent_at:
+            return "Not sent"
+        elif self.calendar_invite_success:
+            return "Sent"
+        else:
+            return "Failed"
 
 
 class Attendee(BaseModel):
