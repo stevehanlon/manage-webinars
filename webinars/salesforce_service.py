@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Tuple, Optional
+from django.utils import timezone as django_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -245,9 +246,9 @@ class SalesforceService:
             
             # Step 4: Update attendee with Salesforce IDs
             attendee.salesforce_contact_id = contact_id
-            attendee.salesforce_account_id = account_id
+            attendee.salesforce_account_id = account_id or ""  # Handle None case
             attendee.salesforce_task_id = task_id
-            attendee.salesforce_synced_at = timezone.now()
+            attendee.salesforce_synced_at = django_timezone.now()
             attendee.salesforce_sync_pending = False
             attendee.salesforce_sync_error = ""
             attendee.save()
