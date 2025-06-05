@@ -67,6 +67,9 @@ urlpatterns = [
     # Zoom Registration URLs
     path('attendees/<int:attendee_id>/register-zoom/', views.register_attendee_zoom, name='register_attendee_zoom'),
     
+    # Salesforce Sync URLs
+    path('attendees/<int:attendee_id>/sync-salesforce/', views.sync_attendee_salesforce, name='sync_attendee_salesforce'),
+    
     # REST API
     path('', include(router.urls)),
 ]

@@ -480,6 +480,7 @@ def handle_direct_webhook(request, data):
     first_name = params.get('first_name')
     last_name = params.get('last_name')
     email = params.get('email')
+    organization = params.get('organization', '')
     
     # Validate required fields
     if not all([webinar_date_id, first_name, email]):
@@ -508,7 +509,8 @@ def handle_direct_webhook(request, data):
             email=email,
             defaults={
                 'first_name': first_name,
-                'last_name': last_name or ''
+                'last_name': last_name or '',
+                'organization': organization
             }
         )
         
@@ -517,6 +519,7 @@ def handle_direct_webhook(request, data):
             attendee.deleted_at = None
             attendee.first_name = first_name
             attendee.last_name = last_name or ''
+            attendee.organization = organization
             attendee.save()
     else:
         # For scheduled webinars, create regular Attendee
@@ -525,7 +528,8 @@ def handle_direct_webhook(request, data):
             email=email,
             defaults={
                 'first_name': first_name,
-                'last_name': last_name or ''  # Default to empty string if no last name
+                'last_name': last_name or '',  # Default to empty string if no last name
+                'organization': organization
             }
         )
         
@@ -534,6 +538,7 @@ def handle_direct_webhook(request, data):
             attendee.deleted_at = None
             attendee.first_name = first_name
             attendee.last_name = last_name or ''
+            attendee.organization = organization
             attendee.save()
     
     # Handle activation and Zoom registration based on attendee type
@@ -1049,6 +1054,52 @@ def webhook_log_clear_all(request):
         return redirect('webhook_log_list')
     
     return redirect('webhook_log_list')
+
+
+@login_required
+def sync_attendee_salesforce(request, attendee_id):
+    """Manually sync an attendee to Salesforce."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    # Try to find the attendee in different models
+    attendee = None
+    attendee_type = None
+    
+    # Check regular attendees first
+    try:
+        attendee = Attendee.objects.get(pk=attendee_id, deleted_at=None)
+        attendee_type = "Attendee"
+    except Attendee.DoesNotExist:
+        # Try on-demand attendees
+        try:
+            attendee = OnDemandAttendee.objects.get(pk=attendee_id, deleted_at=None)
+            attendee_type = "OnDemandAttendee"
+        except OnDemandAttendee.DoesNotExist:
+            # Try bundle attendees
+            try:
+                attendee = BundleAttendee.objects.get(pk=attendee_id, deleted_at=None)
+                attendee_type = "BundleAttendee"
+            except BundleAttendee.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'Attendee not found'}, status=404)
+    
+    try:
+        from .salesforce_service import SalesforceService
+        
+        sf_service = SalesforceService()
+        success, message = sf_service.sync_attendee(attendee)
+        
+        if success:
+            messages.success(request, f'Successfully synced {attendee.email} to Salesforce')
+            return JsonResponse({'success': True, 'message': message})
+        else:
+            messages.error(request, f'Failed to sync {attendee.email} to Salesforce: {message}')
+            return JsonResponse({'success': False, 'message': message}, status=400)
+            
+    except Exception as e:
+        error_msg = f"Error syncing to Salesforce: {str(e)}"
+        messages.error(request, error_msg)
+        return JsonResponse({'success': False, 'message': error_msg}, status=500)
 
 
 @login_required

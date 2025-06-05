@@ -80,8 +80,10 @@
                             <tr>
                                 <th>Name</th>
                                 <th>Email</th>
+                                <th>Organization</th>
                                 <th>Registered</th>
                                 <th>Activation Status</th>
+                                <th>Salesforce Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -90,6 +92,13 @@
                             <tr>
                                 <td>{{ attendee.first_name }} {{ attendee.last_name }}</td>
                                 <td>{{ attendee.email }}</td>
+                                <td>
+                                    {% if attendee.organization %}
+                                    {{ attendee.organization }}
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ attendee.created_at|date:"M d, Y H:i" }}</td>
                                 <td>
                                     {% if attendee.activation_status == "Sent" %}
@@ -106,13 +115,42 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-warning" 
-                                            onclick="activateAttendee({{ attendee.id }})" 
-                                            id="activate-btn-{{ attendee.id }}"
-                                            {% if attendee.activation_sent_at and attendee.activation_success %}disabled{% endif %}>
-                                        <i class="bi bi-lightning-charge"></i> 
-                                        {% if attendee.activation_sent_at %}Re-activate Kajabi{% else %}Activate Kajabi{% endif %}
-                                    </button>
+                                    {% if attendee.salesforce_status == "Synced" %}
+                                    <span class="badge bg-success">✓ {{ attendee.salesforce_status }}</span>
+                                    {% if attendee.salesforce_contact_url %}
+                                    <div class="mt-1">
+                                        <small><a href="{{ attendee.salesforce_contact_url }}" target="_blank" class="btn btn-link btn-sm p-0">View in SF</a></small>
+                                    </div>
+                                    {% endif %}
+                                    {% elif attendee.salesforce_status == "Failed" %}
+                                    <span class="badge bg-danger" title="{{ attendee.salesforce_sync_error }}">✗ {{ attendee.salesforce_status }}</span>
+                                    {% elif attendee.salesforce_status == "Pending" %}
+                                    <span class="badge bg-warning">{{ attendee.salesforce_status }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ attendee.salesforce_status }}</span>
+                                    {% endif %}
+                                    {% if attendee.salesforce_synced_at %}
+                                    <small class="text-muted d-block">{{ attendee.salesforce_synced_at|date:"M d, H:i" }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group-vertical" role="group">
+                                        <button class="btn btn-sm btn-outline-warning" 
+                                                onclick="activateAttendee({{ attendee.id }})" 
+                                                id="activate-btn-{{ attendee.id }}"
+                                                {% if attendee.activation_sent_at and attendee.activation_success %}disabled{% endif %}>
+                                            <i class="bi bi-lightning-charge"></i> 
+                                            {% if attendee.activation_sent_at %}Re-activate Kajabi{% else %}Activate Kajabi{% endif %}
+                                        </button>
+                                        
+                                        {% if attendee.salesforce_status != "Synced" %}
+                                        <button class="btn btn-sm btn-outline-info mt-1" 
+                                                onclick="syncSalesforce({{ attendee.id }})" 
+                                                id="sf-btn-{{ attendee.id }}">
+                                            <i class="bi bi-cloud-upload"></i> Sync to SF
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -244,6 +282,42 @@ function activateAllBundleAttendees(bundleDateId) {
         alert('An error occurred while activating attendees.');
         button.disabled = false;
         button.innerHTML = originalText;
+    });
+}
+
+function syncSalesforce(attendeeId) {
+    if (!confirm('Sync this attendee to Salesforce?')) {
+        return;
+    }
+    
+    const button = document.getElementById(`sf-btn-${attendeeId}`);
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Syncing...';
+    button.disabled = true;
+    
+    fetch(`/attendees/${attendeeId}/sync-salesforce/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Refresh the page to show updated status
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+        button.innerHTML = originalText;
+        button.disabled = false;
     });
 }
 </script>
