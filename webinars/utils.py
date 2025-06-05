@@ -246,7 +246,7 @@ def process_kajabi_webhook(data, request):
             
             # Extract attendee information
             first_name = payload.get('First Name', '')
-            last_name = '' # Form submissions may not have last name
+            last_name = payload.get('Surname', '')  # Form submissions have Surname field
             email = payload.get('Email', '')
             
             # Extract date from payload using the form_date_field from the webinar

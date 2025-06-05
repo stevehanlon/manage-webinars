@@ -499,85 +499,117 @@ def handle_direct_webhook(request, data):
             'message': f'Webinar date not found: {webinar_date_id}'
         }, status=404)
     
-    # Create or get attendee
-    attendee, created = Attendee.objects.get_or_create(
-        webinar_date=webinar_date,
-        email=email,
-        defaults={
-            'first_name': first_name,
-            'last_name': last_name or ''  # Default to empty string if no last name
-        }
-    )
+    # Check if this is an on-demand webinar date
+    if webinar_date.on_demand:
+        # For on-demand webinars, create OnDemandAttendee directly
+        from .models import OnDemandAttendee
+        attendee, created = OnDemandAttendee.objects.get_or_create(
+            webinar=webinar_date.webinar,
+            email=email,
+            defaults={
+                'first_name': first_name,
+                'last_name': last_name or ''
+            }
+        )
+        
+        # If attendee existed but was deleted, restore it
+        if not created and attendee.is_deleted:
+            attendee.deleted_at = None
+            attendee.first_name = first_name
+            attendee.last_name = last_name or ''
+            attendee.save()
+    else:
+        # For scheduled webinars, create regular Attendee
+        attendee, created = Attendee.objects.get_or_create(
+            webinar_date=webinar_date,
+            email=email,
+            defaults={
+                'first_name': first_name,
+                'last_name': last_name or ''  # Default to empty string if no last name
+            }
+        )
+        
+        # If attendee existed but was deleted, restore it
+        if not created and attendee.is_deleted:
+            attendee.deleted_at = None
+            attendee.first_name = first_name
+            attendee.last_name = last_name or ''
+            attendee.save()
     
-    # If attendee existed but was deleted, restore it
-    if not created and attendee.is_deleted:
-        attendee.deleted_at = None
-        attendee.first_name = first_name
-        attendee.last_name = last_name or ''
-        attendee.save()
-    
-    # For on-demand webinars, activate immediately
-    if webinar_date.on_demand and not attendee.activation_sent_at:
-        try:
-            from .activation_service import activate_attendee
-            success, activation_message = activate_attendee(attendee)
-            if success:
-                logger.info(f"Immediately activated on-demand attendee {email}: {activation_message}")
-            else:
-                logger.warning(f"Failed to activate on-demand attendee {email}: {activation_message}")
-        except Exception as e:
-            logger.error(f"Error activating on-demand attendee {email}: {str(e)}")
-    
-    # Try to register attendee in Zoom if webinar has Zoom meeting ID and is not on-demand
+    # Handle activation and Zoom registration based on attendee type
     zoom_status = ""
-    if webinar_date.zoom_meeting_id and not webinar_date.on_demand and not attendee.zoom_registrant_id:
-        try:
-            from .zoom_service import ZoomService
-            from django.utils import timezone
-            
-            zoom_service = ZoomService()
-            result = zoom_service.register_attendee(
-                webinar_date.zoom_meeting_id,
-                first_name,
-                last_name or '',
-                email
-            )
-            
-            if result['success']:
-                attendee.zoom_registrant_id = result['registrant_id']
-                attendee.zoom_join_url = result['join_url']
-                attendee.zoom_invite_link = result.get('invite_link', result['join_url'])
-                attendee.zoom_registered_at = timezone.now()
-                attendee.zoom_registration_error = ''
-                zoom_status = " and registered in Zoom"
-                logger.info(f"Registered attendee {email} in Zoom webinar {webinar_date.zoom_meeting_id}")
-            else:
-                attendee.zoom_registration_error = result['error']
-                zoom_status = " (Zoom registration failed)"
-                logger.warning(f"Failed to register attendee {email} in Zoom: {result['error']}")
-            
-            attendee.save()
-            
-        except Exception as e:
-            error_msg = f"Error registering attendee in Zoom: {str(e)}"
-            attendee.zoom_registration_error = error_msg
-            attendee.save()
-            logger.error(error_msg)
-            zoom_status = " (Zoom registration error)"
-    elif webinar_date.on_demand:
+    
+    if webinar_date.on_demand:
+        # For on-demand attendees, activate immediately
+        if not attendee.activation_sent_at:
+            try:
+                from .activation_service import activate_attendee
+                success, activation_message = activate_attendee(attendee)
+                if success:
+                    logger.info(f"Immediately activated on-demand attendee {email}: {activation_message}")
+                else:
+                    logger.warning(f"Failed to activate on-demand attendee {email}: {activation_message}")
+            except Exception as e:
+                logger.error(f"Error activating on-demand attendee {email}: {str(e)}")
+        
+        # Set status message for on-demand
         if attendee.activation_sent_at and attendee.activation_success:
             zoom_status = " (on-demand - activated immediately)"
         elif attendee.activation_sent_at and not attendee.activation_success:
             zoom_status = " (on-demand - activation failed)"
         else:
             zoom_status = " (on-demand - no Zoom registration needed)"
+    else:
+        # For scheduled attendees, try to register in Zoom if webinar has Zoom meeting ID
+        if webinar_date.zoom_meeting_id and not attendee.zoom_registrant_id:
+            try:
+                from .zoom_service import ZoomService
+                from django.utils import timezone
+                
+                zoom_service = ZoomService()
+                result = zoom_service.register_attendee(
+                    webinar_date.zoom_meeting_id,
+                    first_name,
+                    last_name or '',
+                    email
+                )
+                
+                if result['success']:
+                    attendee.zoom_registrant_id = result['registrant_id']
+                    attendee.zoom_join_url = result['join_url']
+                    attendee.zoom_invite_link = result.get('invite_link', result['join_url'])
+                    attendee.zoom_registered_at = timezone.now()
+                    attendee.zoom_registration_error = ''
+                    zoom_status = " and registered in Zoom"
+                    logger.info(f"Registered attendee {email} in Zoom webinar {webinar_date.zoom_meeting_id}")
+                else:
+                    attendee.zoom_registration_error = result['error']
+                    zoom_status = " (Zoom registration failed)"
+                    logger.warning(f"Failed to register attendee {email} in Zoom: {result['error']}")
+                
+                attendee.save()
+                
+            except Exception as e:
+                error_msg = f"Error registering attendee in Zoom: {str(e)}"
+                attendee.zoom_registration_error = error_msg
+                attendee.save()
+                logger.error(error_msg)
+                zoom_status = " (Zoom registration error)"
     
     status = "Created" if created else "Updated"
-    date_display = "On Demand" if webinar_date.on_demand else webinar_date.date_time
-    logger.info(f"Direct webhook success - {status} attendee {attendee.id} for {webinar_date.webinar.name}")
+    
+    if webinar_date.on_demand:
+        # For on-demand attendees, show webinar name only (no date)
+        message = f'{status} on-demand attendee for {webinar_date.webinar.name}{zoom_status}'
+        logger.info(f"Direct webhook success - {status} on-demand attendee {attendee.id} for {webinar_date.webinar.name}")
+    else:
+        # For scheduled attendees, show webinar name and date
+        message = f'{status} attendee for {webinar_date.webinar.name} on {webinar_date.date_time}{zoom_status}'
+        logger.info(f"Direct webhook success - {status} attendee {attendee.id} for {webinar_date.webinar.name}")
+    
     return JsonResponse({
         'status': 'success',
-        'message': f'{status} attendee for {webinar_date.webinar.name} on {date_display}{zoom_status}',
+        'message': message,
         'attendee_id': attendee.id
     })
 
