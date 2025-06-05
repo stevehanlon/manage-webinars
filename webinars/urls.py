@@ -12,6 +12,7 @@ router.register(r'api/attendees', api.AttendeeViewSet)
 urlpatterns = [
     # Dashboard
     path('', views.dashboard, name='dashboard'),
+    path('forthcoming/', views.forthcoming_webinars, name='forthcoming_webinars'),
     
     # Webinar URLs
     path('webinars/add/', views.WebinarCreateView.as_view(), name='webinar_create'),

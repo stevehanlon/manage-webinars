@@ -1121,3 +1121,74 @@ def register_attendee_zoom(request, attendee_id):
         }, status=500)
 
 
+# Forthcoming Webinars View
+@login_required
+def forthcoming_webinars(request):
+    """Display all forthcoming webinars across the system."""
+    from django.utils import timezone
+    from django.db.models import Q
+    
+    # Get all future webinar dates (excluding on-demand and deleted)
+    current_time = timezone.now()
+    webinar_dates = WebinarDate.objects.filter(
+        deleted_at=None,
+        on_demand=False,
+        date_time__gte=current_time
+    ).select_related('webinar').order_by('date_time')
+    
+    # Get bundle dates with future webinars
+    bundle_dates = BundleDate.objects.filter(
+        deleted_at=None,
+        date__gte=current_time.date()
+    ).select_related('bundle').prefetch_related('webinar_dates').order_by('date')
+    
+    # Combine and sort all events
+    events = []
+    
+    # Add webinar dates
+    for date in webinar_dates:
+        events.append({
+            'type': 'webinar',
+            'title': date.webinar.name,
+            'date_time': date.date_time,
+            'zoom_meeting_id': date.zoom_meeting_id,
+            'attendee_count': date.total_attendee_count,
+            'detail_url': date.get_absolute_url(),
+            'webinar_url': date.webinar.get_absolute_url()
+        })
+    
+    # Add bundle dates
+    for bundle in bundle_dates:
+        # Find the earliest webinar time on this date
+        webinar_dates_on_day = bundle.webinar_dates.filter(
+            deleted_at=None,
+            date_time__date=bundle.date
+        ).order_by('date_time')
+        
+        if webinar_dates_on_day.exists():
+            first_time = webinar_dates_on_day.first().date_time
+        else:
+            # If no webinars on this date, use 9am as default
+            first_time = timezone.make_aware(
+                timezone.datetime.combine(bundle.date, timezone.datetime.min.time().replace(hour=9))
+            )
+        
+        events.append({
+            'type': 'bundle',
+            'title': bundle.bundle.name,
+            'date_time': first_time,
+            'zoom_meeting_id': None,  # Bundles don't have direct Zoom IDs
+            'attendee_count': bundle.attendee_count,
+            'detail_url': bundle.get_absolute_url(),
+            'webinar_count': bundle.webinar_dates.filter(deleted_at=None).count()
+        })
+    
+    # Sort all events by date_time
+    events.sort(key=lambda x: x['date_time'])
+    
+    return render(request, 'webinars/forthcoming_webinars.html', {
+        'events': events,
+        'current_time': current_time
+    })
+
+
