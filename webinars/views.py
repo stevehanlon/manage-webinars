@@ -285,7 +285,11 @@ class BundleAttendeeCreateView(LoginRequiredMixin, CreateView):
 def attendee_webhook(request):
     """Webhook endpoint for registering attendees from Kajabi."""
     import logging
+    import time
+    from .models import WebhookLog
+    
     logger = logging.getLogger('webinars')
+    start_time = time.time()
     
     # Log all inbound requests
     logger.info(f"Webhook request received - Method: {request.method}, Path: {request.path}")
@@ -295,7 +299,21 @@ def attendee_webhook(request):
     if request.method != 'POST':
         from django.http import HttpResponse
         logger.info(f"Non-POST request ({request.method}) - returning 200 OK")
-        return HttpResponse('OK', content_type='text/plain', status=200)
+        response = HttpResponse('OK', content_type='text/plain', status=200)
+        
+        # Save to database
+        WebhookLog.objects.create(
+            method=request.method,
+            path=request.path,
+            headers=dict(request.headers),
+            body='',
+            response_status=response.status_code,
+            response_body='OK',
+            success=True,
+            processing_time_ms=int((time.time() - start_time) * 1000)
+        )
+        
+        return response
     
     if request.method == 'POST':
         # Log request body
@@ -320,6 +338,21 @@ def attendee_webhook(request):
                 logger.info(f"Processing as direct webhook call")
                 result = handle_direct_webhook(request, data)
                 logger.info(f"Direct webhook result - Status: {result.status_code}")
+                
+                # Save to database
+                response_body = result.content.decode('utf-8') if hasattr(result, 'content') else ''
+                WebhookLog.objects.create(
+                    method=request.method,
+                    path=request.path,
+                    headers=dict(request.headers),
+                    body=body_unicode,
+                    response_status=result.status_code,
+                    response_body=response_body,
+                    success=(result.status_code < 400),
+                    error_message='' if result.status_code < 400 else 'Direct webhook error',
+                    processing_time_ms=int((time.time() - start_time) * 1000)
+                )
+                
                 return result
             
             # Process Kajabi webhook data
@@ -329,17 +362,49 @@ def attendee_webhook(request):
             
             if success:
                 logger.info(f"Webhook processed successfully - Message: {message}, Attendee ID: {attendee_id}")
-                return JsonResponse({
+                response_data = {
                     'status': 'success',
                     'message': message,
                     'attendee_id': attendee_id
-                })
+                }
+                response = JsonResponse(response_data)
+                
+                # Save to database
+                WebhookLog.objects.create(
+                    method=request.method,
+                    path=request.path,
+                    headers=dict(request.headers),
+                    body=body_unicode,
+                    response_status=response.status_code,
+                    response_body=json.dumps(response_data),
+                    success=True,
+                    error_message='',
+                    processing_time_ms=int((time.time() - start_time) * 1000)
+                )
+                
+                return response
             else:
                 logger.warning(f"Webhook processing failed - Message: {message}")
-                return JsonResponse({
+                response_data = {
                     'status': 'error',
                     'message': message
-                }, status=400)
+                }
+                response = JsonResponse(response_data, status=400)
+                
+                # Save to database
+                WebhookLog.objects.create(
+                    method=request.method,
+                    path=request.path,
+                    headers=dict(request.headers),
+                    body=body_unicode,
+                    response_status=response.status_code,
+                    response_body=json.dumps(response_data),
+                    success=False,
+                    error_message=message,
+                    processing_time_ms=int((time.time() - start_time) * 1000)
+                )
+                
+                return response
             
         except Exception as e:
             import traceback
@@ -362,10 +427,26 @@ def attendee_webhook(request):
             except Exception as email_error:
                 logger.error(f"Failed to send error email: {str(email_error)}")
             
-            return JsonResponse({
+            response_data = {
                 'status': 'error',
                 'message': str(e)
-            }, status=500)
+            }
+            response = JsonResponse(response_data, status=500)
+            
+            # Save to database
+            WebhookLog.objects.create(
+                method=request.method,
+                path=request.path,
+                headers=dict(request.headers),
+                body=body_unicode,
+                response_status=response.status_code,
+                response_body=json.dumps(response_data),
+                success=False,
+                error_message=error_message,
+                processing_time_ms=int((time.time() - start_time) * 1000)
+            )
+            
+            return response
     
     return JsonResponse({
         'status': 'error',
@@ -793,3 +874,76 @@ def send_calendar_invite_view(request, webinar_date_id):
         error_msg = f"Error sending calendar invite: {str(e)}"
         messages.error(request, error_msg)
         return JsonResponse({'success': False, 'message': error_msg}, status=500)
+
+
+# Webhook Log Views
+@login_required
+def webhook_log_list(request):
+    """List all webhook logs with pagination."""
+    from .models import WebhookLog
+    from django.core.paginator import Paginator
+    
+    webhook_logs = WebhookLog.objects.all()
+    
+    # Filter by success/failure if requested
+    status_filter = request.GET.get('status')
+    if status_filter == 'success':
+        webhook_logs = webhook_logs.filter(success=True)
+    elif status_filter == 'failure':
+        webhook_logs = webhook_logs.filter(success=False)
+    
+    # Filter by method if requested
+    method_filter = request.GET.get('method')
+    if method_filter:
+        webhook_logs = webhook_logs.filter(method=method_filter)
+    
+    # Paginate results
+    paginator = Paginator(webhook_logs, 50)  # Show 50 logs per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, 'webinars/webhook_log_list.html', {
+        'page_obj': page_obj,
+        'status_filter': status_filter,
+        'method_filter': method_filter,
+    })
+
+
+@login_required
+def webhook_log_detail(request, pk):
+    """View details of a specific webhook log."""
+    from .models import WebhookLog
+    
+    webhook_log = get_object_or_404(WebhookLog, pk=pk)
+    
+    return render(request, 'webinars/webhook_log_detail.html', {
+        'webhook_log': webhook_log,
+    })
+
+
+@login_required
+def webhook_log_delete(request, pk):
+    """Delete a specific webhook log."""
+    from .models import WebhookLog
+    
+    if request.method == 'POST':
+        webhook_log = get_object_or_404(WebhookLog, pk=pk)
+        webhook_log.delete()
+        messages.success(request, 'Webhook log deleted successfully.')
+        return redirect('webhook_log_list')
+    
+    return redirect('webhook_log_list')
+
+
+@login_required
+def webhook_log_clear_all(request):
+    """Clear all webhook logs."""
+    from .models import WebhookLog
+    
+    if request.method == 'POST':
+        count = WebhookLog.objects.count()
+        WebhookLog.objects.all().delete()
+        messages.success(request, f'Cleared {count} webhook logs.')
+        return redirect('webhook_log_list')
+    
+    return redirect('webhook_log_list')

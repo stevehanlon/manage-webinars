@@ -57,6 +57,12 @@ urlpatterns = [
     # Calendar Invite URLs
     path('send-calendar-invite/<int:webinar_date_id>/', views.send_calendar_invite_view, name='send_calendar_invite'),
     
+    # Webhook Log URLs
+    path('webhook-logs/', views.webhook_log_list, name='webhook_log_list'),
+    path('webhook-logs/<int:pk>/', views.webhook_log_detail, name='webhook_log_detail'),
+    path('webhook-logs/<int:pk>/delete/', views.webhook_log_delete, name='webhook_log_delete'),
+    path('webhook-logs/clear-all/', views.webhook_log_clear_all, name='webhook_log_clear_all'),
+    
     # REST API
     path('', include(router.urls)),
 ]

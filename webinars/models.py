@@ -293,3 +293,46 @@ class BundleAttendee(BaseModel):
             return "Sent"
         else:
             return "Failed"
+
+
+class WebhookLog(models.Model):
+    """Model to store webhook request logs for debugging."""
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    method = models.CharField(max_length=10)
+    path = models.CharField(max_length=200)
+    headers = models.JSONField()
+    body = models.TextField(blank=True)
+    response_status = models.IntegerField()
+    response_body = models.TextField(blank=True)
+    success = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True)
+    processing_time_ms = models.IntegerField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['success']),
+        ]
+    
+    def __str__(self):
+        return f"{self.method} {self.path} - {self.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    @property
+    def body_preview(self):
+        """Return first 100 characters of body for preview."""
+        if self.body:
+            return self.body[:100] + ('...' if len(self.body) > 100 else '')
+        return ''
+    
+    @property
+    def formatted_body(self):
+        """Return formatted JSON body if possible."""
+        if self.body:
+            try:
+                import json
+                data = json.loads(self.body)
+                return json.dumps(data, indent=2)
+            except:
+                return self.body
+        return ''
