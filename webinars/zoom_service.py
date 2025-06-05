@@ -187,6 +187,56 @@ class ZoomService:
                 'error': str(e)
             }
     
+    def resend_invite_email(self, webinar_id, registrant_id):
+        """
+        Resend invitation email to a registered attendee.
+        
+        Args:
+            webinar_id: Zoom webinar ID
+            registrant_id: Zoom registrant ID
+            
+        Returns:
+            dict: Success status and message
+        """
+        # Update registrant status to trigger email notification
+        update_data = {
+            "action": "approve",
+            "registrants": [
+                {
+                    "id": registrant_id
+                }
+            ]
+        }
+        
+        endpoint = f"/webinars/{webinar_id}/registrants/status"
+        try:
+            response = self._make_api_request('PUT', endpoint, update_data)
+            return {
+                'success': True,
+                'message': 'Invitation email resent successfully'
+            }
+        except ZoomAPIError as e:
+            # If the registrant is already approved, try alternative method
+            if 'already approved' in str(e).lower() or 'invalid status' in str(e).lower():
+                try:
+                    # Alternative: Send a direct email notification (if available)
+                    endpoint = f"/webinars/{webinar_id}/registrants/{registrant_id}/email"
+                    response = self._make_api_request('POST', endpoint, {})
+                    return {
+                        'success': True,
+                        'message': 'Invitation email resent successfully'
+                    }
+                except ZoomAPIError as e2:
+                    return {
+                        'success': False,
+                        'error': f'Unable to resend email: {str(e2)}'
+                    }
+            else:
+                return {
+                    'success': False,
+                    'error': str(e)
+                }
+    
     def test_connection(self):
         """Test the Zoom API connection and return account info."""
         try:

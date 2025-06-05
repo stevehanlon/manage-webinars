@@ -63,7 +63,7 @@
                 <div>
                     {% if attendees %}
                     <button class="btn btn-sm btn-warning me-2" onclick="activateAllBundleAttendees({{ bundle_date.id }})" id="activate-all-btn">
-                        <i class="bi bi-lightning-charge"></i> Activate All
+                        <i class="bi bi-lightning-charge"></i> Activate All Kajabi
                     </button>
                     {% endif %}
                     <a href="{% url 'bundle_attendee_create' bundle_date.id %}" class="btn btn-sm btn-success me-2">
@@ -111,7 +111,7 @@
                                             id="activate-btn-{{ attendee.id }}"
                                             {% if attendee.activation_sent_at and attendee.activation_success %}disabled{% endif %}>
                                         <i class="bi bi-lightning-charge"></i> 
-                                        {% if attendee.activation_sent_at %}Re-activate{% else %}Activate{% endif %}
+                                        {% if attendee.activation_sent_at %}Re-activate Kajabi{% else %}Activate Kajabi{% endif %}
                                     </button>
                                 </td>
                             </tr>

@@ -65,6 +65,7 @@ urlpatterns = [
     
     # Zoom Registration URLs
     path('attendees/<int:attendee_id>/register-zoom/', views.register_attendee_zoom, name='register_attendee_zoom'),
+    path('attendees/<int:attendee_id>/resend-zoom-invite/', views.resend_zoom_invite, name='resend_zoom_invite'),
     
     # REST API
     path('', include(router.urls)),

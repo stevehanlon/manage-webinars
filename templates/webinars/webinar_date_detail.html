@@ -65,7 +65,7 @@
                 <div>
                     {% if attendees %}
                     <button class="btn btn-sm btn-warning me-2" onclick="activateAllAttendees({{ webinar_date.id }})" id="activate-all-btn">
-                        <i class="bi bi-lightning-charge"></i> Activate All
+                        <i class="bi bi-lightning-charge"></i> Activate All Kajabi
                     </button>
                     {% endif %}
                     <a href="{% url 'attendee_create' webinar_date.id %}" class="btn btn-sm btn-primary me-2">
@@ -117,7 +117,10 @@
                                     {% if attendee.zoom_registration_status == "Registered" %}
                                     <span class="badge bg-success">✓ {{ attendee.zoom_registration_status }}</span>
                                     {% if attendee.zoom_invite_link %}
-                                    <br><small><a href="{{ attendee.zoom_invite_link }}" target="_blank">View Invite</a></small>
+                                    <div class="mt-1">
+                                        <small><button class="btn btn-link btn-sm p-0" onclick="copyToClipboard('{{ attendee.zoom_invite_link }}', this)" title="Copy invite link to clipboard">Invite link</button></small>
+                                        <br><small><button class="btn btn-link btn-sm p-0" onclick="resendZoomInvite({{ attendee.id }})" title="Resend invitation email">Resend invite</button></small>
+                                    </div>
                                     {% endif %}
                                     {% elif attendee.zoom_registration_status == "Failed" %}
                                     <span class="badge bg-danger" title="{{ attendee.zoom_registration_error }}">✗ {{ attendee.zoom_registration_status }}</span>
@@ -134,7 +137,7 @@
                                                 id="activate-btn-{{ attendee.id }}"
                                                 {% if attendee.activation_sent_at and attendee.activation_success %}disabled{% endif %}>
                                             <i class="bi bi-lightning-charge"></i> 
-                                            {% if attendee.activation_sent_at %}Re-activate{% else %}Activate{% endif %}
+                                            {% if attendee.activation_sent_at %}Re-activate Kajabi{% else %}Activate Kajabi{% endif %}
                                         </button>
                                         
                                         {% if attendee.can_register_zoom %}
@@ -345,6 +348,67 @@ function registerZoom(attendeeId) {
         alert('Error: ' + error.message);
         button.innerHTML = originalText;
         button.disabled = false;
+    });
+}
+
+function copyToClipboard(text, button) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show success feedback
+        const originalText = button.innerHTML;
+        button.innerHTML = 'Copied!';
+        button.classList.add('text-success');
+        
+        setTimeout(function() {
+            button.innerHTML = originalText;
+            button.classList.remove('text-success');
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Could not copy text: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            const originalText = button.innerHTML;
+            button.innerHTML = 'Copied!';
+            button.classList.add('text-success');
+            
+            setTimeout(function() {
+                button.innerHTML = originalText;
+                button.classList.remove('text-success');
+            }, 2000);
+        } catch (err) {
+            alert('Failed to copy to clipboard');
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
+function resendZoomInvite(attendeeId) {
+    if (!confirm('Resend Zoom invitation email to this attendee?')) {
+        return;
+    }
+    
+    fetch(`/attendees/${attendeeId}/resend-zoom-invite/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Zoom invitation email resent successfully!');
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
     });
 }
 </script>
