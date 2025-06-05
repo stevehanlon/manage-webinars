@@ -84,6 +84,7 @@
                                 <th>Email</th>
                                 <th>Registered</th>
                                 <th>Activation Status</th>
+                                <th>Zoom Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -113,13 +114,37 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-warning" 
-                                            onclick="activateAttendee({{ attendee.id }})" 
-                                            id="activate-btn-{{ attendee.id }}"
-                                            {% if attendee.activation_sent_at and attendee.activation_success %}disabled{% endif %}>
-                                        <i class="bi bi-lightning-charge"></i> 
-                                        {% if attendee.activation_sent_at %}Re-activate{% else %}Activate{% endif %}
-                                    </button>
+                                    {% if attendee.zoom_registration_status == "Registered" %}
+                                    <span class="badge bg-success">✓ {{ attendee.zoom_registration_status }}</span>
+                                    {% if attendee.zoom_invite_link %}
+                                    <br><small><a href="{{ attendee.zoom_invite_link }}" target="_blank">View Invite</a></small>
+                                    {% endif %}
+                                    {% elif attendee.zoom_registration_status == "Failed" %}
+                                    <span class="badge bg-danger" title="{{ attendee.zoom_registration_error }}">✗ {{ attendee.zoom_registration_status }}</span>
+                                    {% elif attendee.zoom_registration_status == "No Zoom webinar" %}
+                                    <span class="badge bg-secondary">{{ attendee.zoom_registration_status }}</span>
+                                    {% else %}
+                                    <span class="badge bg-warning">{{ attendee.zoom_registration_status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group-vertical" role="group">
+                                        <button class="btn btn-sm btn-outline-warning" 
+                                                onclick="activateAttendee({{ attendee.id }})" 
+                                                id="activate-btn-{{ attendee.id }}"
+                                                {% if attendee.activation_sent_at and attendee.activation_success %}disabled{% endif %}>
+                                            <i class="bi bi-lightning-charge"></i> 
+                                            {% if attendee.activation_sent_at %}Re-activate{% else %}Activate{% endif %}
+                                        </button>
+                                        
+                                        {% if attendee.can_register_zoom %}
+                                        <button class="btn btn-sm btn-outline-primary mt-1" 
+                                                onclick="registerZoom({{ attendee.id }})" 
+                                                id="zoom-btn-{{ attendee.id }}">
+                                            <i class="bi bi-camera-video"></i> Add to Zoom
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -284,6 +309,42 @@ function sendCalendarInvite(webinarDateId) {
         alert('An error occurred while sending the calendar invite.');
         button.disabled = false;
         button.innerHTML = originalText;
+    });
+}
+
+function registerZoom(attendeeId) {
+    if (!confirm('Register this attendee in Zoom?')) {
+        return;
+    }
+    
+    const button = document.getElementById(`zoom-btn-${attendeeId}`);
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Registering...';
+    button.disabled = true;
+    
+    fetch(`/attendees/${attendeeId}/register-zoom/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Refresh the page to show updated status
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+        button.innerHTML = originalText;
+        button.disabled = false;
     });
 }
 </script>

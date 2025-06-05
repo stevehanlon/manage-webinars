@@ -295,8 +295,47 @@ def process_kajabi_webhook(data, request):
             attendee.last_name = last_name
             attendee.save()
         
+        # Try to register attendee in Zoom if webinar has Zoom meeting ID
+        if webinar_date.zoom_meeting_id and not attendee.zoom_registrant_id:
+            try:
+                from .zoom_service import ZoomService
+                zoom_service = ZoomService()
+                
+                result = zoom_service.register_attendee(
+                    webinar_date.zoom_meeting_id,
+                    first_name,
+                    last_name,
+                    email
+                )
+                
+                if result['success']:
+                    attendee.zoom_registrant_id = result['registrant_id']
+                    attendee.zoom_join_url = result['join_url']
+                    attendee.zoom_invite_link = result.get('invite_link', result['join_url'])
+                    attendee.zoom_registered_at = timezone.now()
+                    attendee.zoom_registration_error = ''
+                    logger.info(f"Registered attendee {email} in Zoom webinar {webinar_date.zoom_meeting_id}")
+                else:
+                    attendee.zoom_registration_error = result['error']
+                    logger.warning(f"Failed to register attendee {email} in Zoom: {result['error']}")
+                
+                attendee.save()
+                
+            except Exception as e:
+                error_msg = f"Error registering attendee in Zoom: {str(e)}"
+                attendee.zoom_registration_error = error_msg
+                attendee.save()
+                logger.error(error_msg)
+        
         status = "Created" if created else "Updated"
-        return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}", attendee.id
+        zoom_status = ""
+        if webinar_date.zoom_meeting_id:
+            if attendee.zoom_registrant_id:
+                zoom_status = " and registered in Zoom"
+            elif attendee.zoom_registration_error:
+                zoom_status = " (Zoom registration failed)"
+        
+        return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}{zoom_status}", attendee.id
     
     except Exception as e:
         error_message = f"Error processing webhook: {str(e)}"

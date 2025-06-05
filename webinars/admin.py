@@ -68,9 +68,12 @@ class WebinarDateAdmin(admin.ModelAdmin):
 
 @admin.register(Attendee)
 class AttendeeAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'email', 'webinar_name', 'webinar_date', 'created_at', 'is_deleted']
-    list_filter = ['webinar_date__webinar', 'webinar_date__date_time', 'created_at']
-    search_fields = ['first_name', 'last_name', 'email', 'webinar_date__webinar__name']
+    list_display = ['full_name', 'email', 'webinar_name', 'webinar_date', 'zoom_status_display', 'zoom_actions', 'created_at', 'is_deleted']
+    list_filter = ['webinar_date__webinar', 'webinar_date__date_time', 'created_at', 'zoom_registrant_id']
+    search_fields = ['first_name', 'last_name', 'email', 'webinar_date__webinar__name', 'zoom_registrant_id']
+    
+    class Media:
+        js = ('js/attendee_admin.js',)
     
     def full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
@@ -92,7 +95,37 @@ class AttendeeAdmin(admin.ModelAdmin):
     
     is_deleted.boolean = True
     is_deleted.short_description = 'Deleted'
-
+    
+    def zoom_status_display(self, obj):
+        status = obj.zoom_registration_status
+        if status == "Registered":
+            return format_html('<span style="color: green;">✓ {}</span>', status)
+        elif status == "Failed":
+            return format_html('<span style="color: red;">✗ {}</span>', status)
+        elif status == "No Zoom webinar":
+            return format_html('<span style="color: gray;">{}</span>', status)
+        else:
+            return format_html('<span style="color: orange;">{}</span>', status)
+    
+    zoom_status_display.short_description = 'Zoom Status'
+    zoom_status_display.admin_order_field = 'zoom_registrant_id'
+    
+    def zoom_actions(self, obj):
+        if obj.can_register_zoom:
+            return format_html(
+                '<button onclick="registerZoom({})" class="btn btn-sm btn-primary">Add to Zoom</button>',
+                obj.id
+            )
+        elif obj.zoom_invite_link:
+            return format_html(
+                '<a href="{}" target="_blank" class="btn btn-sm btn-success">View Invite</a>',
+                obj.zoom_invite_link
+            )
+        else:
+            return "-"
+    
+    zoom_actions.short_description = 'Actions'
+    zoom_actions.allow_tags = True
 
 class BundleDateInline(admin.TabularInline):
     model = BundleDate

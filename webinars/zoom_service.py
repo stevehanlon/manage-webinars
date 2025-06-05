@@ -152,6 +152,41 @@ class ZoomService:
             'zoom_response': webinar_response
         }
     
+    def register_attendee(self, webinar_id, first_name, last_name, email):
+        """
+        Register an attendee for a Zoom webinar.
+        
+        Args:
+            webinar_id: Zoom webinar ID
+            first_name: Attendee's first name
+            last_name: Attendee's last name
+            email: Attendee's email address
+            
+        Returns:
+            dict: Registration response including join_url, registrant_id, etc.
+        """
+        registrant_data = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email
+        }
+        
+        endpoint = f"/webinars/{webinar_id}/registrants"
+        try:
+            response = self._make_api_request('POST', endpoint, registrant_data)
+            return {
+                'success': True,
+                'registrant_id': response.get('registrant_id'),
+                'join_url': response.get('join_url'),
+                'invite_link': response.get('registrant_url', response.get('join_url', '')),
+                'zoom_response': response
+            }
+        except ZoomAPIError as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
     def test_connection(self):
         """Test the Zoom API connection and return account info."""
         try:

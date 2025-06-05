@@ -63,6 +63,9 @@ urlpatterns = [
     path('webhook-logs/<int:pk>/delete/', views.webhook_log_delete, name='webhook_log_delete'),
     path('webhook-logs/clear-all/', views.webhook_log_clear_all, name='webhook_log_clear_all'),
     
+    # Zoom Registration URLs
+    path('attendees/<int:attendee_id>/register-zoom/', views.register_attendee_zoom, name='register_attendee_zoom'),
+    
     # REST API
     path('', include(router.urls)),
 ]

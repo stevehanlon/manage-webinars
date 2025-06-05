@@ -138,12 +138,38 @@ class Attendee(BaseModel):
     activation_sent_at = models.DateTimeField(null=True, blank=True, help_text="When the Kajabi grant offer activation was sent")
     activation_success = models.BooleanField(null=True, blank=True, help_text="Whether the activation was successful")
     activation_error = models.TextField(blank=True, help_text="Error message if activation failed")
+    zoom_registrant_id = models.CharField(max_length=100, blank=True, help_text="Zoom registrant ID if registered")
+    zoom_join_url = models.URLField(max_length=500, blank=True, help_text="Personal Zoom join URL for this attendee")
+    zoom_invite_link = models.URLField(max_length=500, blank=True, help_text="Meeting invite link for this attendee")
+    zoom_registered_at = models.DateTimeField(null=True, blank=True, help_text="When registered in Zoom")
+    zoom_registration_error = models.TextField(blank=True, help_text="Error message if Zoom registration failed")
     
     class Meta:
         unique_together = ['webinar_date', 'email']
     
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.email}"
+    
+    @property
+    def zoom_registration_status(self):
+        """Return a human-readable Zoom registration status."""
+        if not self.webinar_date.zoom_meeting_id:
+            return "No Zoom webinar"
+        elif self.zoom_registrant_id:
+            return "Registered"
+        elif self.zoom_registration_error:
+            return "Failed"
+        else:
+            return "Not registered"
+    
+    @property
+    def can_register_zoom(self):
+        """Return True if attendee can be registered in Zoom (has meeting ID but not registered)."""
+        return (
+            self.webinar_date.zoom_meeting_id and 
+            not self.zoom_registrant_id and 
+            not self.is_deleted
+        )
     
     @property
     def needs_activation(self):

@@ -503,11 +503,48 @@ def handle_direct_webhook(request, data):
         attendee.last_name = last_name or ''
         attendee.save()
     
+    # Try to register attendee in Zoom if webinar has Zoom meeting ID
+    zoom_status = ""
+    if webinar_date.zoom_meeting_id and not attendee.zoom_registrant_id:
+        try:
+            from .zoom_service import ZoomService
+            from django.utils import timezone
+            
+            zoom_service = ZoomService()
+            result = zoom_service.register_attendee(
+                webinar_date.zoom_meeting_id,
+                first_name,
+                last_name or '',
+                email
+            )
+            
+            if result['success']:
+                attendee.zoom_registrant_id = result['registrant_id']
+                attendee.zoom_join_url = result['join_url']
+                attendee.zoom_invite_link = result.get('invite_link', result['join_url'])
+                attendee.zoom_registered_at = timezone.now()
+                attendee.zoom_registration_error = ''
+                zoom_status = " and registered in Zoom"
+                logger.info(f"Registered attendee {email} in Zoom webinar {webinar_date.zoom_meeting_id}")
+            else:
+                attendee.zoom_registration_error = result['error']
+                zoom_status = " (Zoom registration failed)"
+                logger.warning(f"Failed to register attendee {email} in Zoom: {result['error']}")
+            
+            attendee.save()
+            
+        except Exception as e:
+            error_msg = f"Error registering attendee in Zoom: {str(e)}"
+            attendee.zoom_registration_error = error_msg
+            attendee.save()
+            logger.error(error_msg)
+            zoom_status = " (Zoom registration error)"
+    
     status = "Created" if created else "Updated"
     logger.info(f"Direct webhook success - {status} attendee {attendee.id} for {webinar_date.webinar.name}")
     return JsonResponse({
         'status': 'success',
-        'message': f'{status} attendee for {webinar_date.webinar.name} on {webinar_date.date_time}',
+        'message': f'{status} attendee for {webinar_date.webinar.name} on {webinar_date.date_time}{zoom_status}',
         'attendee_id': attendee.id
     })
 
@@ -947,3 +984,73 @@ def webhook_log_clear_all(request):
         return redirect('webhook_log_list')
     
     return redirect('webhook_log_list')
+
+
+@login_required
+def register_attendee_zoom(request, attendee_id):
+    """Manually register an attendee in Zoom."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    attendee = get_object_or_404(Attendee, pk=attendee_id, deleted_at=None)
+    
+    # Check if webinar date has Zoom meeting ID
+    if not attendee.webinar_date.zoom_meeting_id:
+        return JsonResponse({
+            'success': False, 
+            'message': 'No Zoom webinar ID configured for this webinar date'
+        }, status=400)
+    
+    # Check if already registered
+    if attendee.zoom_registrant_id:
+        return JsonResponse({
+            'success': False, 
+            'message': 'Attendee is already registered in Zoom'
+        }, status=400)
+    
+    try:
+        from .zoom_service import ZoomService
+        from django.utils import timezone
+        
+        zoom_service = ZoomService()
+        result = zoom_service.register_attendee(
+            attendee.webinar_date.zoom_meeting_id,
+            attendee.first_name,
+            attendee.last_name,
+            attendee.email
+        )
+        
+        if result['success']:
+            attendee.zoom_registrant_id = result['registrant_id']
+            attendee.zoom_join_url = result['join_url']
+            attendee.zoom_invite_link = result.get('invite_link', result['join_url'])
+            attendee.zoom_registered_at = timezone.now()
+            attendee.zoom_registration_error = ''
+            attendee.save()
+            
+            messages.success(request, f'Successfully registered {attendee.email} in Zoom')
+            return JsonResponse({
+                'success': True, 
+                'message': f'Successfully registered {attendee.email} in Zoom',
+                'registrant_id': result['registrant_id']
+            })
+        else:
+            attendee.zoom_registration_error = result['error']
+            attendee.save()
+            
+            messages.error(request, f'Failed to register {attendee.email} in Zoom: {result["error"]}')
+            return JsonResponse({
+                'success': False, 
+                'message': f'Failed to register in Zoom: {result["error"]}'
+            }, status=400)
+            
+    except Exception as e:
+        error_msg = f"Error registering attendee in Zoom: {str(e)}"
+        attendee.zoom_registration_error = error_msg
+        attendee.save()
+        
+        messages.error(request, error_msg)
+        return JsonResponse({
+            'success': False, 
+            'message': error_msg
+        }, status=500)
