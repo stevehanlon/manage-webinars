@@ -121,7 +121,7 @@ def find_webinar_date(webinar, date_time):
     return None
 
 
-def create_on_demand_attendee(webinar, first_name, last_name, email):
+def create_on_demand_attendee(webinar, first_name, last_name, email, organization=''):
     """
     Create or update an on-demand attendee for a webinar.
     Returns the attendee and whether it was created.
@@ -133,7 +133,8 @@ def create_on_demand_attendee(webinar, first_name, last_name, email):
         email=email,
         defaults={
             'first_name': first_name,
-            'last_name': last_name
+            'last_name': last_name,
+            'organization': organization
         }
     )
     
@@ -142,6 +143,7 @@ def create_on_demand_attendee(webinar, first_name, last_name, email):
         attendee.deleted_at = None
         attendee.first_name = first_name
         attendee.last_name = last_name
+        attendee.organization = organization
         attendee.save()
     
     logger.info(f"{'Created' if created else 'Updated'} on-demand attendee {email} for {webinar.name}")
@@ -248,6 +250,7 @@ def process_kajabi_webhook(data, request):
             first_name = payload.get('First Name', '')
             last_name = payload.get('Surname', '')  # Form submissions have Surname field
             email = payload.get('Email', '')
+            organization = payload.get('Organisation', '')  # Extract organization from form
             
             # Extract date from payload using the form_date_field from the webinar
             date_str = payload.get(webinar.form_date_field, '')
@@ -276,6 +279,7 @@ def process_kajabi_webhook(data, request):
             first_name = payload.get('member_first_name', '')
             last_name = payload.get('member_last_name', '')
             email = payload.get('member_email', '')
+            organization = ''  # Purchase events don't typically have organization data
             
             # Extract date from payload using the checkout_date_field from the webinar
             date_str = payload.get(webinar.checkout_date_field, '')
@@ -294,7 +298,7 @@ def process_kajabi_webhook(data, request):
         
         # Handle on-demand webinars
         if parsed_date == 'on_demand':
-            attendee, created = create_on_demand_attendee(webinar, first_name, last_name, email)
+            attendee, created = create_on_demand_attendee(webinar, first_name, last_name, email, organization)
             
             # For on-demand attendees, activate immediately
             if not attendee.activation_sent_at:
@@ -345,7 +349,8 @@ def process_kajabi_webhook(data, request):
                 email=email,
                 defaults={
                     'first_name': first_name,
-                    'last_name': last_name
+                    'last_name': last_name,
+                    'organization': organization
                 }
             )
             
@@ -354,6 +359,7 @@ def process_kajabi_webhook(data, request):
                 attendee.deleted_at = None
                 attendee.first_name = first_name
                 attendee.last_name = last_name
+                attendee.organization = organization
                 attendee.save()
             
             # Try to register attendee in Zoom if webinar has Zoom meeting ID
@@ -423,13 +429,15 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
         # Extract attendee information based on webhook type
         if webhook_type == 'form':
             first_name = payload.get('First Name', '')
-            last_name = ''
+            last_name = payload.get('Surname', '')
             email = payload.get('Email', '')
+            organization = payload.get('Organisation', '')
             date_str = payload.get(bundle.form_date_field, '')
         else:  # purchase
             first_name = payload.get('member_first_name', '')
             last_name = payload.get('member_last_name', '')
             email = payload.get('member_email', '')
+            organization = ''
             date_str = payload.get(bundle.checkout_date_field, '')
         
         # Validate required fields
@@ -469,7 +477,8 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
             email=email,
             defaults={
                 'first_name': first_name,
-                'last_name': last_name
+                'last_name': last_name,
+                'organization': organization
             }
         )
         
@@ -478,6 +487,7 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
             attendee.deleted_at = None
             attendee.first_name = first_name
             attendee.last_name = last_name
+            attendee.organization = organization
             attendee.save()
         
         status = "Created" if created else "Updated"

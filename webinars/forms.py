@@ -45,11 +45,12 @@ class WebinarDateForm(forms.ModelForm):
 class AttendeeForm(forms.ModelForm):
     class Meta:
         model = Attendee
-        fields = ['first_name', 'last_name', 'email']
+        fields = ['first_name', 'last_name', 'email', 'organization']
         widgets = {
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'organization': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional'}),
         }
 
 
@@ -111,9 +112,10 @@ class BundleDateForm(forms.ModelForm):
 class BundleAttendeeForm(forms.ModelForm):
     class Meta:
         model = BundleAttendee
-        fields = ['first_name', 'last_name', 'email']
+        fields = ['first_name', 'last_name', 'email', 'organization']
         widgets = {
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'organization': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional'}),
         }
