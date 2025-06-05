@@ -101,6 +101,52 @@
     </div>
 </div>
 
+{% if on_demand_dates %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">On-Demand Access</h5>
+                <span class="badge bg-info">{{ on_demand_attendee_count }} attendee{{ on_demand_attendee_count|pluralize }}</span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    <i class="bi bi-play-circle"></i> 
+                    Attendees who registered for on-demand access to webinar recordings.
+                </p>
+                
+                {% for on_demand_date in on_demand_dates %}
+                <div class="d-flex justify-content-between align-items-center p-3 border rounded mb-2">
+                    <div>
+                        <h6 class="mb-1">
+                            <span class="badge bg-info me-2">On-Demand</span>
+                            {{ on_demand_date.attendee_count }} attendee{{ on_demand_date.attendee_count|pluralize }}
+                        </h6>
+                        <small class="text-muted">
+                            Created: {{ on_demand_date.created_at|date:"M d, Y H:i" }}
+                        </small>
+                    </div>
+                    <div>
+                        <a href="{% url 'webinar_date_detail' on_demand_date.id %}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-people"></i> View Attendees
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="alert alert-info mt-3">
+                    <small>
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Note:</strong> On-demand attendees are automatically activated for immediate access 
+                        when they register via Kajabi webhooks with "on demand" in the date field.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     <div class="col-12">
         <div class="card">
@@ -118,8 +164,10 @@
                 <ul>
                     <li>Match the form/offer title to "{{ webinar.name }}"{% if webinar.aliases %} or its aliases{% endif %}</li>
                     <li>Extract the date from the "{{ webinar.form_date_field }}" field (forms) or "{{ webinar.checkout_date_field }}" field (purchases)</li>
-                    <li>Create a new webinar date if one doesn't exist for the extracted date</li>
+                    <li>If the date contains "on demand" (case insensitive), create/use an on-demand webinar date</li>
+                    <li>For regular dates, create a new webinar date if one doesn't exist for the extracted date</li>
                     <li>Register the attendee with the correct webinar date</li>
+                    <li><strong>For on-demand attendees:</strong> Automatically activate Kajabi offers immediately</li>
                 </ul>
 
                 {% if webinar.aliases %}
