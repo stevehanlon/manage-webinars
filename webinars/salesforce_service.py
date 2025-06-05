@@ -109,7 +109,8 @@ class SalesforceService:
             return None
         
         # SOQL query to find account by name
-        query = f"SELECT Id FROM Account WHERE Name = '{account_name.replace(\"'\", \"\\'\")}')"
+        escaped_name = account_name.replace("'", "\\'")
+        query = f"SELECT Id FROM Account WHERE Name = '{escaped_name}'"
         success, result = self._make_request('GET', f"query/?q={query}")
         
         if success and result.get('records'):
@@ -143,7 +144,8 @@ class SalesforceService:
             return None
         
         # SOQL query to find contact by email
-        query = f"SELECT Id FROM Contact WHERE Email = '{email.replace(\"'\", \"\\'\")}')"
+        escaped_email = email.replace("'", "\\'")
+        query = f"SELECT Id FROM Contact WHERE Email = '{escaped_email}'"
         success, result = self._make_request('GET', f"query/?q={query}")
         
         if success and result.get('records'):
