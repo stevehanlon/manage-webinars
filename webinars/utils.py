@@ -250,7 +250,16 @@ def process_kajabi_webhook(data, request):
             first_name = payload.get('First Name', '')
             last_name = payload.get('Surname', '')  # Form submissions have Surname field
             email = payload.get('Email', '')
-            organization = payload.get('Organisation', '')  # Extract organization from form
+            # Try multiple organization field variations
+            organization = (payload.get('custom_field_organisation') or 
+                          payload.get('Organisation') or 
+                          payload.get('Organization') or 
+                          payload.get('organisation') or 
+                          payload.get('organization') or '')
+            
+            # Debug logging for organization extraction
+            logger.info(f"Form submission organization extraction - custom_field_organisation: '{payload.get('custom_field_organisation')}', "
+                       f"Organisation: '{payload.get('Organisation')}', final organization: '{organization}'")
             
             # Extract date from payload using the form_date_field from the webinar
             date_str = payload.get(webinar.form_date_field, '')
@@ -431,7 +440,17 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
             first_name = payload.get('First Name', '')
             last_name = payload.get('Surname', '')
             email = payload.get('Email', '')
-            organization = payload.get('Organisation', '')
+            # Try multiple organization field variations
+            organization = (payload.get('custom_field_organisation') or 
+                          payload.get('Organisation') or 
+                          payload.get('Organization') or 
+                          payload.get('organisation') or 
+                          payload.get('organization') or '')
+            
+            # Debug logging for organization extraction
+            logger.info(f"Bundle form organization extraction - custom_field_organisation: '{payload.get('custom_field_organisation')}', "
+                       f"Organisation: '{payload.get('Organisation')}', final organization: '{organization}'")
+            
             date_str = payload.get(bundle.form_date_field, '')
         else:  # purchase
             first_name = payload.get('member_first_name', '')
