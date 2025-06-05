@@ -33,7 +33,9 @@
     <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100 border-success">
             <div class="card-header bg-success text-white">
-                <h5 class="card-title mb-0">{{ bundle.name }}</h5>
+                <h5 class="card-title mb-0">
+                    <a href="{% url 'bundle_detail' bundle.id %}" class="text-white text-decoration-none">{{ bundle.name }}</a>
+                </h5>
                 <small>Bundle</small>
             </div>
             <div class="card-body">
@@ -67,7 +69,9 @@
     <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
             <div class="card-header">
-                <h5 class="card-title mb-0">{{ webinar.name }}</h5>
+                <h5 class="card-title mb-0">
+                    <a href="{% url 'webinar_detail' webinar.id %}" class="text-dark text-decoration-none">{{ webinar.name }}</a>
+                </h5>
             </div>
             <div class="card-body">
                 <p class="card-text">
