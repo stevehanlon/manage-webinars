@@ -21,6 +21,10 @@ class KajabiActivationService:
             # Regular webinar attendee
             activation_url = attendee.webinar_date.webinar.kajabi_grant_activation_hook_url
             attendee_type = "webinar"
+        elif hasattr(attendee, 'webinar'):
+            # On-demand attendee
+            activation_url = attendee.webinar.kajabi_grant_activation_hook_url
+            attendee_type = "on_demand"
         else:
             # Bundle attendee
             activation_url = attendee.bundle_date.bundle.kajabi_grant_activation_hook_url

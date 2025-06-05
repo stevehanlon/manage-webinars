@@ -36,17 +36,18 @@ class WebinarDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Separate regular dates from on-demand dates
-        all_dates = self.object.active_dates()
-        context['dates'] = all_dates.filter(on_demand=False).order_by('date_time')
+        # Get all webinar dates (no need to filter out on-demand since we're not using them anymore)
+        context['dates'] = self.object.active_dates().order_by('date_time')
         
-        # Get on-demand dates and their attendees
-        on_demand_dates = all_dates.filter(on_demand=True)
-        context['on_demand_dates'] = on_demand_dates
+        # Get on-demand attendees directly
+        from .models import OnDemandAttendee
+        on_demand_attendees = OnDemandAttendee.objects.filter(
+            webinar=self.object,
+            deleted_at=None
+        ).order_by('-created_at')
         
-        # Calculate total on-demand attendees
-        on_demand_attendee_count = sum(date.attendee_count for date in on_demand_dates)
-        context['on_demand_attendee_count'] = on_demand_attendee_count
+        context['on_demand_attendees'] = on_demand_attendees
+        context['on_demand_attendee_count'] = on_demand_attendees.count()
         
         return context
 

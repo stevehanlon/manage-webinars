@@ -121,28 +121,31 @@ def find_webinar_date(webinar, date_time):
     return None
 
 
-def find_or_create_on_demand_webinar_date(webinar):
+def create_on_demand_attendee(webinar, first_name, last_name, email):
     """
-    Find an existing on-demand webinar date or create one.
-    Returns the found or created on-demand webinar date.
+    Create or update an on-demand attendee for a webinar.
+    Returns the attendee and whether it was created.
     """
-    from .models import WebinarDate
+    from .models import OnDemandAttendee
     
-    # First try to find an existing on-demand date for this webinar
-    existing_on_demand = webinar.active_dates().filter(on_demand=True).first()
-    if existing_on_demand:
-        return existing_on_demand
-    
-    # Create a new on-demand date
-    # Use current date/time as placeholder since on_demand=True overrides the actual date
-    webinar_date = WebinarDate.objects.create(
+    attendee, created = OnDemandAttendee.objects.get_or_create(
         webinar=webinar,
-        date_time=timezone.now(),
-        on_demand=True
+        email=email,
+        defaults={
+            'first_name': first_name,
+            'last_name': last_name
+        }
     )
     
-    logger.info(f"Created on-demand webinar date for {webinar.name}")
-    return webinar_date
+    # If attendee existed but was deleted, restore it
+    if not created and attendee.is_deleted:
+        attendee.deleted_at = None
+        attendee.first_name = first_name
+        attendee.last_name = last_name
+        attendee.save()
+    
+    logger.info(f"{'Created' if created else 'Updated'} on-demand attendee {email} for {webinar.name}")
+    return attendee, created
 
 
 def find_bundle_date(bundle, date_time):
@@ -287,7 +290,28 @@ def process_kajabi_webhook(data, request):
         
         # Handle on-demand webinars
         if parsed_date == 'on_demand':
-            webinar_date = find_or_create_on_demand_webinar_date(webinar)
+            attendee, created = create_on_demand_attendee(webinar, first_name, last_name, email)
+            
+            # For on-demand attendees, activate immediately
+            if not attendee.activation_sent_at:
+                try:
+                    from .activation_service import activate_attendee
+                    success, activation_message = activate_attendee(attendee)
+                    if success:
+                        logger.info(f"Immediately activated on-demand attendee {email}: {activation_message}")
+                    else:
+                        logger.warning(f"Failed to activate on-demand attendee {email}: {activation_message}")
+                except Exception as e:
+                    logger.error(f"Error activating on-demand attendee {email}: {str(e)}")
+            
+            status = "Created" if created else "Updated"
+            activation_status = ""
+            if attendee.activation_sent_at and attendee.activation_success:
+                activation_status = " (activated immediately)"
+            elif attendee.activation_sent_at and not attendee.activation_success:
+                activation_status = " (activation failed)"
+            
+            return True, f"{status} on-demand attendee for {webinar.name}{activation_status}", attendee.id
         else:
             # Find matching webinar date (no auto-creation for regular dates)
             webinar_date = find_webinar_date(webinar, parsed_date)
@@ -311,85 +335,65 @@ def process_kajabi_webhook(data, request):
                 )
                 return False, f"No webinar date found for {date_str}. Error email sent to {webinar.error_notification_email}.", None
         
-        # Create or update attendee
-        attendee, created = Attendee.objects.get_or_create(
-            webinar_date=webinar_date,
-            email=email,
-            defaults={
-                'first_name': first_name,
-                'last_name': last_name
-            }
-        )
-        
-        # If attendee existed but was deleted, restore it
-        if not created and attendee.is_deleted:
-            attendee.deleted_at = None
-            attendee.first_name = first_name
-            attendee.last_name = last_name
-            attendee.save()
-        
-        # For on-demand webinars, activate immediately
-        if webinar_date.on_demand and not attendee.activation_sent_at:
-            try:
-                from .activation_service import activate_attendee
-                success, activation_message = activate_attendee(attendee)
-                if success:
-                    logger.info(f"Immediately activated on-demand attendee {email}: {activation_message}")
-                else:
-                    logger.warning(f"Failed to activate on-demand attendee {email}: {activation_message}")
-            except Exception as e:
-                logger.error(f"Error activating on-demand attendee {email}: {str(e)}")
-        
-        # Try to register attendee in Zoom if webinar has Zoom meeting ID and is not on-demand
-        if webinar_date.zoom_meeting_id and not webinar_date.on_demand and not attendee.zoom_registrant_id:
-            try:
-                from .zoom_service import ZoomService
-                zoom_service = ZoomService()
-                
-                result = zoom_service.register_attendee(
-                    webinar_date.zoom_meeting_id,
-                    first_name,
-                    last_name,
-                    email
-                )
-                
-                if result['success']:
-                    attendee.zoom_registrant_id = result['registrant_id']
-                    attendee.zoom_join_url = result['join_url']
-                    attendee.zoom_invite_link = result.get('invite_link', result['join_url'])
-                    attendee.zoom_registered_at = timezone.now()
-                    attendee.zoom_registration_error = ''
-                    logger.info(f"Registered attendee {email} in Zoom webinar {webinar_date.zoom_meeting_id}")
-                else:
-                    attendee.zoom_registration_error = result['error']
-                    logger.warning(f"Failed to register attendee {email} in Zoom: {result['error']}")
-                
+            # Create or update regular attendee for scheduled dates
+            attendee, created = Attendee.objects.get_or_create(
+                webinar_date=webinar_date,
+                email=email,
+                defaults={
+                    'first_name': first_name,
+                    'last_name': last_name
+                }
+            )
+            
+            # If attendee existed but was deleted, restore it
+            if not created and attendee.is_deleted:
+                attendee.deleted_at = None
+                attendee.first_name = first_name
+                attendee.last_name = last_name
                 attendee.save()
-                
-            except Exception as e:
-                error_msg = f"Error registering attendee in Zoom: {str(e)}"
-                attendee.zoom_registration_error = error_msg
-                attendee.save()
-                logger.error(error_msg)
+            
+            # Try to register attendee in Zoom if webinar has Zoom meeting ID
+            if webinar_date.zoom_meeting_id and not attendee.zoom_registrant_id:
+                try:
+                    from .zoom_service import ZoomService
+                    zoom_service = ZoomService()
+                    
+                    result = zoom_service.register_attendee(
+                        webinar_date.zoom_meeting_id,
+                        first_name,
+                        last_name,
+                        email
+                    )
+                    
+                    if result['success']:
+                        attendee.zoom_registrant_id = result['registrant_id']
+                        attendee.zoom_join_url = result['join_url']
+                        attendee.zoom_invite_link = result.get('invite_link', result['join_url'])
+                        attendee.zoom_registered_at = timezone.now()
+                        attendee.zoom_registration_error = ''
+                        logger.info(f"Registered attendee {email} in Zoom webinar {webinar_date.zoom_meeting_id}")
+                    else:
+                        attendee.zoom_registration_error = result['error']
+                        logger.warning(f"Failed to register attendee {email} in Zoom: {result['error']}")
+                    
+                    attendee.save()
+                    
+                except Exception as e:
+                    error_msg = f"Error registering attendee in Zoom: {str(e)}"
+                    attendee.zoom_registration_error = error_msg
+                    attendee.save()
+                    logger.error(error_msg)
         
-        status = "Created" if created else "Updated"
-        zoom_status = ""
-        date_display = "On Demand" if webinar_date.on_demand else webinar_date.date_time
-        
-        if webinar_date.zoom_meeting_id and not webinar_date.on_demand:
-            if attendee.zoom_registrant_id:
-                zoom_status = " and registered in Zoom"
-            elif attendee.zoom_registration_error:
-                zoom_status = " (Zoom registration failed)"
-        elif webinar_date.on_demand:
-            if attendee.activation_sent_at and attendee.activation_success:
-                zoom_status = " (on-demand - activated immediately)"
-            elif attendee.activation_sent_at and not attendee.activation_success:
-                zoom_status = " (on-demand - activation failed)"
-            else:
-                zoom_status = " (on-demand - no Zoom registration needed)"
-        
-        return True, f"{status} attendee for {webinar.name} on {date_display}{zoom_status}", attendee.id
+            status = "Created" if created else "Updated"
+            zoom_status = ""
+            
+            if webinar_date.zoom_meeting_id:
+                if attendee.zoom_registrant_id:
+                    zoom_status = " and registered in Zoom"
+                elif attendee.zoom_registration_error:
+                    zoom_status = " (Zoom registration failed)"
+            
+            return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}{zoom_status}", attendee.id
     
     except Exception as e:
         error_message = f"Error processing webhook: {str(e)}"

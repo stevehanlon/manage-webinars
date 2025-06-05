@@ -332,6 +332,38 @@ class BundleAttendee(BaseModel):
             return "Failed"
 
 
+class OnDemandAttendee(BaseModel):
+    """Model representing an attendee who has on-demand access to webinar recordings."""
+    webinar = models.ForeignKey(Webinar, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    activation_sent_at = models.DateTimeField(null=True, blank=True, help_text="When the Kajabi grant offer activation was sent")
+    activation_success = models.BooleanField(null=True, blank=True, help_text="Whether the activation was successful")
+    activation_error = models.TextField(blank=True, help_text="Error message if activation failed")
+    
+    class Meta:
+        unique_together = ['webinar', 'email']
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.email} (On-Demand)"
+    
+    @property
+    def needs_activation(self):
+        """On-demand attendees should be activated immediately."""
+        return not self.activation_sent_at
+    
+    @property
+    def activation_status(self):
+        """Return a human-readable activation status."""
+        if not self.activation_sent_at:
+            return "Pending"
+        elif self.activation_success:
+            return "Sent"
+        else:
+            return "Failed"
+
+
 class WebhookLog(models.Model):
     """Model to store webhook request logs for debugging."""
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)

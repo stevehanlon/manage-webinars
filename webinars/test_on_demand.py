@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 import json
 from unittest.mock import patch, MagicMock
 
-from .models import Webinar, WebinarDate, Attendee
+from .models import Webinar, WebinarDate, Attendee, OnDemandAttendee
 from .utils import (
     parse_webinar_date, 
-    find_or_create_on_demand_webinar_date,
+    create_on_demand_attendee,
     process_kajabi_webhook
 )
 
@@ -57,7 +57,7 @@ class OnDemandParsingTests(TestCase):
 
 
 class OnDemandModelTests(TestCase):
-    """Test on-demand webinar model functionality."""
+    """Test on-demand attendee model functionality."""
     
     def setUp(self):
         self.webinar = Webinar.objects.create(
@@ -65,100 +65,43 @@ class OnDemandModelTests(TestCase):
             kajabi_grant_activation_hook_url="https://example.com/webhook"
         )
     
-    def test_on_demand_webinar_date_creation(self):
-        """Test creating an on-demand webinar date."""
-        webinar_date = WebinarDate.objects.create(
+    def test_on_demand_attendee_creation(self):
+        """Test creating an on-demand attendee."""
+        attendee = OnDemandAttendee.objects.create(
             webinar=self.webinar,
-            date_time=timezone.now(),
-            on_demand=True
+            first_name="John",
+            last_name="Doe",
+            email="john@example.com"
         )
         
-        self.assertTrue(webinar_date.on_demand)
-        self.assertEqual(str(webinar_date), "Test Webinar - On Demand")
+        self.assertEqual(attendee.webinar, self.webinar)
+        self.assertEqual(attendee.first_name, "John")
+        self.assertEqual(attendee.last_name, "Doe")
+        self.assertEqual(attendee.email, "john@example.com")
+        self.assertIsNone(attendee.activation_sent_at)
+        self.assertIsNone(attendee.activation_success)
     
-    def test_regular_webinar_date_string(self):
-        """Test string representation of regular webinar date."""
-        webinar_date = WebinarDate.objects.create(
+    def test_on_demand_attendee_activation_status(self):
+        """Test activation status property."""
+        attendee = OnDemandAttendee.objects.create(
             webinar=self.webinar,
-            date_time=timezone.now(),
-            on_demand=False
-        )
-        
-        self.assertFalse(webinar_date.on_demand)
-        self.assertIn("Test Webinar -", str(webinar_date))
-        self.assertNotIn("On Demand", str(webinar_date))
-    
-    def test_attendee_needs_activation_on_demand(self):
-        """Test that on-demand attendees need immediate activation."""
-        on_demand_date = WebinarDate.objects.create(
-            webinar=self.webinar,
-            date_time=timezone.now(),
-            on_demand=True
-        )
-        
-        attendee = Attendee.objects.create(
-            webinar_date=on_demand_date,
             first_name="Test",
             last_name="User",
             email="test@example.com"
         )
         
-        self.assertTrue(attendee.needs_activation)
-    
-    def test_attendee_needs_activation_regular_future(self):
-        """Test that regular future attendees don't need activation yet."""
-        future_date = WebinarDate.objects.create(
-            webinar=self.webinar,
-            date_time=timezone.now() + timedelta(days=1),
-            on_demand=False
-        )
+        # Initially pending
+        self.assertEqual(attendee.activation_status, "Pending")
         
-        attendee = Attendee.objects.create(
-            webinar_date=future_date,
-            first_name="Test",
-            last_name="User",
-            email="test@example.com"
-        )
+        # After successful activation
+        attendee.activation_sent_at = timezone.now()
+        attendee.activation_success = True
+        self.assertEqual(attendee.activation_status, "Sent")
         
-        self.assertFalse(attendee.needs_activation)
-    
-    def test_attendee_can_register_zoom_on_demand(self):
-        """Test that on-demand attendees cannot register for Zoom."""
-        on_demand_date = WebinarDate.objects.create(
-            webinar=self.webinar,
-            date_time=timezone.now(),
-            on_demand=True,
-            zoom_meeting_id="123456789"
-        )
-        
-        attendee = Attendee.objects.create(
-            webinar_date=on_demand_date,
-            first_name="Test",
-            last_name="User",
-            email="test@example.com"
-        )
-        
-        # Even with zoom_meeting_id, on-demand attendees can't register
-        self.assertFalse(attendee.can_register_zoom)
-    
-    def test_attendee_can_register_zoom_regular(self):
-        """Test that regular attendees can register for Zoom when appropriate."""
-        regular_date = WebinarDate.objects.create(
-            webinar=self.webinar,
-            date_time=timezone.now() + timedelta(days=1),
-            on_demand=False,
-            zoom_meeting_id="123456789"
-        )
-        
-        attendee = Attendee.objects.create(
-            webinar_date=regular_date,
-            first_name="Test",
-            last_name="User",
-            email="test@example.com"
-        )
-        
-        # Regular attendees with Zoom meeting can register
-        self.assertTrue(attendee.can_register_zoom)
+        # After failed activation
+        attendee.activation_success = False
+        attendee.activation_error = "Test error"
+        self.assertEqual(attendee.activation_status, "Failed")
 
 
 class OnDemandUtilsTests(TestCase):
@@ -170,46 +113,59 @@ class OnDemandUtilsTests(TestCase):
             kajabi_grant_activation_hook_url="https://example.com/webhook"
         )
     
-    def test_find_or_create_on_demand_creates_new(self):
-        """Test creating a new on-demand webinar date."""
-        # Ensure no existing on-demand dates
-        self.assertEqual(self.webinar.active_dates().filter(on_demand=True).count(), 0)
+    def test_create_on_demand_attendee_creates_new(self):
+        """Test creating a new on-demand attendee."""
+        # Ensure no existing on-demand attendees
+        self.assertEqual(OnDemandAttendee.objects.filter(webinar=self.webinar).count(), 0)
         
-        webinar_date = find_or_create_on_demand_webinar_date(self.webinar)
-        
-        self.assertTrue(webinar_date.on_demand)
-        self.assertEqual(webinar_date.webinar, self.webinar)
-        self.assertEqual(self.webinar.active_dates().filter(on_demand=True).count(), 1)
-    
-    def test_find_or_create_on_demand_finds_existing(self):
-        """Test finding an existing on-demand webinar date."""
-        # Create existing on-demand date
-        existing_date = WebinarDate.objects.create(
-            webinar=self.webinar,
-            date_time=timezone.now(),
-            on_demand=True
+        attendee, created = create_on_demand_attendee(
+            self.webinar, "John", "Doe", "john@example.com"
         )
         
-        webinar_date = find_or_create_on_demand_webinar_date(self.webinar)
-        
-        self.assertEqual(webinar_date, existing_date)
-        self.assertEqual(self.webinar.active_dates().filter(on_demand=True).count(), 1)
+        self.assertTrue(created)
+        self.assertEqual(attendee.webinar, self.webinar)
+        self.assertEqual(attendee.first_name, "John")
+        self.assertEqual(attendee.last_name, "Doe")
+        self.assertEqual(attendee.email, "john@example.com")
+        self.assertEqual(OnDemandAttendee.objects.filter(webinar=self.webinar).count(), 1)
     
-    def test_find_or_create_on_demand_ignores_deleted(self):
-        """Test that soft-deleted on-demand dates are ignored."""
-        # Create and soft-delete an on-demand date
-        deleted_date = WebinarDate.objects.create(
+    def test_create_on_demand_attendee_finds_existing(self):
+        """Test finding an existing on-demand attendee."""
+        # Create existing on-demand attendee
+        existing_attendee = OnDemandAttendee.objects.create(
             webinar=self.webinar,
-            date_time=timezone.now(),
-            on_demand=True
+            first_name="John",
+            last_name="Doe",
+            email="john@example.com"
         )
-        deleted_date.soft_delete()
         
-        webinar_date = find_or_create_on_demand_webinar_date(self.webinar)
+        attendee, created = create_on_demand_attendee(
+            self.webinar, "John", "Smith", "john@example.com"
+        )
         
-        self.assertNotEqual(webinar_date, deleted_date)
-        self.assertTrue(webinar_date.on_demand)
-        self.assertFalse(webinar_date.is_deleted)
+        self.assertFalse(created)
+        self.assertEqual(attendee, existing_attendee)
+        self.assertEqual(OnDemandAttendee.objects.filter(webinar=self.webinar).count(), 1)
+    
+    def test_create_on_demand_attendee_restores_deleted(self):
+        """Test that soft-deleted on-demand attendees are restored."""
+        # Create and soft-delete an on-demand attendee
+        deleted_attendee = OnDemandAttendee.objects.create(
+            webinar=self.webinar,
+            first_name="John",
+            last_name="Doe", 
+            email="john@example.com"
+        )
+        deleted_attendee.soft_delete()
+        
+        attendee, created = create_on_demand_attendee(
+            self.webinar, "John", "Smith", "john@example.com"
+        )
+        
+        self.assertFalse(created)
+        self.assertEqual(attendee, deleted_attendee)
+        self.assertFalse(attendee.is_deleted)
+        self.assertEqual(attendee.last_name, "Smith")  # Updated name
 
 
 class OnDemandWebhookTests(TestCase):
@@ -244,10 +200,10 @@ class OnDemandWebhookTests(TestCase):
         self.assertTrue(success)
         self.assertIn("on-demand", message.lower())
         
-        # Check attendee was created
-        attendee = Attendee.objects.get(email="john@example.com")
+        # Check on-demand attendee was created
+        attendee = OnDemandAttendee.objects.get(email="john@example.com")
         self.assertEqual(attendee.first_name, "John")
-        self.assertTrue(attendee.webinar_date.on_demand)
+        self.assertEqual(attendee.webinar, self.webinar)
         
         # Check activation was called
         mock_activate.assert_called_once_with(attendee)
@@ -273,11 +229,11 @@ class OnDemandWebhookTests(TestCase):
         self.assertTrue(success)
         self.assertIn("on-demand", message.lower())
         
-        # Check attendee was created
-        attendee = Attendee.objects.get(email="jane@example.com")
+        # Check on-demand attendee was created
+        attendee = OnDemandAttendee.objects.get(email="jane@example.com")
         self.assertEqual(attendee.first_name, "Jane")
         self.assertEqual(attendee.last_name, "Doe")
-        self.assertTrue(attendee.webinar_date.on_demand)
+        self.assertEqual(attendee.webinar, self.webinar)
         
         # Check activation was called
         mock_activate.assert_called_once_with(attendee)
@@ -302,9 +258,9 @@ class OnDemandWebhookTests(TestCase):
         self.assertTrue(success)  # Webhook processing succeeds even if activation fails
         self.assertIn("on-demand", message.lower())
         
-        # Check attendee was created
-        attendee = Attendee.objects.get(email="test@example.com")
-        self.assertTrue(attendee.webinar_date.on_demand)
+        # Check on-demand attendee was created
+        attendee = OnDemandAttendee.objects.get(email="test@example.com")
+        self.assertEqual(attendee.webinar, self.webinar)
         
         # Check activation was attempted
         mock_activate.assert_called_once_with(attendee)
@@ -313,10 +269,9 @@ class OnDemandWebhookTests(TestCase):
     def test_on_demand_duplicate_attendee(self, mock_activate):
         """Test handling duplicate on-demand attendee registration."""
         mock_activate.return_value = (True, "Activation successful")
-        # Create existing attendee
-        existing_date = find_or_create_on_demand_webinar_date(self.webinar)
-        existing_attendee = Attendee.objects.create(
-            webinar_date=existing_date,
+        # Create existing on-demand attendee
+        existing_attendee = OnDemandAttendee.objects.create(
+            webinar=self.webinar,
             first_name="Original",
             last_name="User",
             email="test@example.com"
@@ -337,8 +292,8 @@ class OnDemandWebhookTests(TestCase):
         self.assertTrue(success)
         self.assertIn("Updated", message)
         
-        # Check only one attendee exists
-        attendees = Attendee.objects.filter(email="test@example.com")
+        # Check only one on-demand attendee exists
+        attendees = OnDemandAttendee.objects.filter(email="test@example.com")
         self.assertEqual(attendees.count(), 1)
 
 
@@ -355,53 +310,26 @@ class OnDemandViewTests(TestCase):
             kajabi_grant_activation_hook_url="https://example.com/webhook"
         )
         
-        self.on_demand_date = WebinarDate.objects.create(
+        # Create an on-demand attendee
+        self.on_demand_attendee = OnDemandAttendee.objects.create(
             webinar=self.webinar,
-            date_time=timezone.now(),
-            on_demand=True
+            first_name="Test",
+            last_name="User",
+            email="test@example.com"
         )
     
-    def test_on_demand_date_detail_view(self):
-        """Test that on-demand date detail view displays correctly."""
-        url = reverse('webinar_date_detail', args=[self.on_demand_date.id])
+    def test_webinar_detail_shows_on_demand_attendees(self):
+        """Test that webinar detail view shows on-demand attendees."""
+        url = reverse('webinar_detail', args=[self.webinar.id])
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "On Demand")
-        self.assertContains(response, "On-Demand Access")
-        self.assertContains(response, "Not applicable for on-demand")
+        self.assertContains(response, "On-Demand Attendees")
+        self.assertContains(response, "test@example.com")
+        self.assertContains(response, "1 attendee")
         
-        # Check that inappropriate buttons are hidden
-        self.assertNotContains(response, "Create Zoom Webinar")
-        self.assertNotContains(response, "Send Calendar Invite")
-    
-    @patch('webinars.activation_service.activate_attendee')
-    def test_direct_webhook_on_demand(self, mock_activate):
-        """Test direct webhook API for on-demand webinars."""
-        mock_activate.return_value = (True, "Activation successful")
-        
-        url = reverse('attendee_webhook')
-        data = {
-            'webinar_date_id': self.on_demand_date.id,
-            'first_name': 'Direct',
-            'last_name': 'User',
-            'email': 'direct@example.com'
-        }
-        
-        response = self.client.post(url, data, content_type='application/json')
-        
-        self.assertEqual(response.status_code, 200)
-        response_data = response.json()
-        
-        self.assertEqual(response_data['status'], 'success')
-        self.assertIn('on-demand', response_data['message'].lower())
-        
-        # Check attendee was created
-        attendee = Attendee.objects.get(email='direct@example.com')
-        self.assertTrue(attendee.webinar_date.on_demand)
-        
-        # Check activation was called
-        mock_activate.assert_called_once_with(attendee)
+        # Check that the on-demand section is shown
+        self.assertContains(response, "on-demand access to the latest webinar recordings")
 
 
 class OnDemandIntegrationTests(TestCase):
@@ -440,10 +368,10 @@ class OnDemandIntegrationTests(TestCase):
         self.assertTrue(success)
         self.assertIn("on-demand", message.lower())
         
-        # Verify attendee was created
-        attendee = Attendee.objects.get(email="sarah@example.com")
+        # Verify on-demand attendee was created
+        attendee = OnDemandAttendee.objects.get(email="sarah@example.com")
         self.assertEqual(attendee.first_name, "Sarah")
-        self.assertTrue(attendee.webinar_date.on_demand)
+        self.assertEqual(attendee.webinar, self.webinar)
         
         # Verify Kajabi activation was called
         mock_post.assert_called_once()
@@ -451,15 +379,10 @@ class OnDemandIntegrationTests(TestCase):
         # Verify activation status
         self.assertIsNotNone(attendee.activation_sent_at)
         self.assertTrue(attendee.activation_success)
-        
-        # Verify on-demand date was created automatically
-        on_demand_dates = self.webinar.active_dates().filter(on_demand=True)
-        self.assertEqual(on_demand_dates.count(), 1)
-        self.assertEqual(str(on_demand_dates.first()), "WordPress Masterclass - On Demand")
     
     @patch('webinars.activation_service.activate_attendee')
-    def test_multiple_on_demand_attendees_same_date(self, mock_activate):
-        """Test that multiple on-demand attendees use the same on-demand date."""
+    def test_multiple_on_demand_attendees_same_webinar(self, mock_activate):
+        """Test that multiple on-demand attendees are created for the same webinar."""
         mock_activate.return_value = (True, "Activation successful")
         # Process first attendee
         webhook_data1 = {
@@ -489,13 +412,14 @@ class OnDemandIntegrationTests(TestCase):
         success2, _, _ = process_kajabi_webhook(webhook_data2, None)
         self.assertTrue(success2)
         
-        # Verify both attendees use the same on-demand date
-        attendee1 = Attendee.objects.get(email="user1@example.com")
-        attendee2 = Attendee.objects.get(email="user2@example.com")
+        # Verify both on-demand attendees were created for the same webinar
+        attendee1 = OnDemandAttendee.objects.get(email="user1@example.com")
+        attendee2 = OnDemandAttendee.objects.get(email="user2@example.com")
         
-        self.assertEqual(attendee1.webinar_date, attendee2.webinar_date)
-        self.assertTrue(attendee1.webinar_date.on_demand)
+        self.assertEqual(attendee1.webinar, self.webinar)
+        self.assertEqual(attendee2.webinar, self.webinar)
+        self.assertEqual(attendee1.webinar, attendee2.webinar)
         
-        # Verify only one on-demand date was created
-        on_demand_dates = self.webinar.active_dates().filter(on_demand=True)
-        self.assertEqual(on_demand_dates.count(), 1)
+        # Verify both attendees exist as separate records
+        on_demand_attendees = OnDemandAttendee.objects.filter(webinar=self.webinar)
+        self.assertEqual(on_demand_attendees.count(), 2)

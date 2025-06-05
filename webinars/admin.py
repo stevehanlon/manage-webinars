@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, WebhookLog
+from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, OnDemandAttendee, WebhookLog
 
 
 class WebinarDateInline(admin.TabularInline):
@@ -294,3 +294,34 @@ class WebhookLogAdmin(admin.ModelAdmin):
             'fields': ('processing_time_ms',)
         }),
     )
+
+
+@admin.register(OnDemandAttendee)
+class OnDemandAttendeeAdmin(admin.ModelAdmin):
+    list_display = ['first_name', 'last_name', 'email', 'webinar', 'activation_status_display', 'created_at']
+    list_filter = ['webinar', 'activation_success', 'created_at']
+    search_fields = ['first_name', 'last_name', 'email', 'webinar__name']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        (None, {
+            'fields': ('webinar', 'first_name', 'last_name', 'email')
+        }),
+        ('Activation Status', {
+            'fields': ('activation_sent_at', 'activation_success', 'activation_error')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def activation_status_display(self, obj):
+        status = obj.activation_status
+        if status == "Sent":
+            return format_html('<span style="color: green;">✓ {}</span>', status)
+        elif status == "Failed":
+            return format_html('<span style="color: red;">✗ {}</span>', status)
+        else:
+            return format_html('<span style="color: orange;">⏳ {}</span>', status)
+    
+    activation_status_display.short_description = 'Activation Status'
