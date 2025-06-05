@@ -185,7 +185,7 @@
             <div class="card-body">
                 <p>For direct registration to this specific webinar date, send a POST request to:</p>
                 <div class="mb-3">
-                    <code>{{ request.scheme }}://{{ request.get_host }}{% url 'attendee_webhook' %}</code>
+                    <code>https://{{ request.get_host }}{% url 'attendee_webhook' %}</code>
                 </div>
                 
                 <p>Include these parameters:</p>

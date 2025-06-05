@@ -68,7 +68,9 @@
                                 <td>{{ date.date_time|date:"M d, Y - H:i" }}</td>
                                 <td>
                                     {% if date.zoom_meeting_id %}
-                                    {{ date.zoom_meeting_id }}
+                                    <a href="https://www.zoom.us/webinar/{{ date.zoom_meeting_id }}" target="_blank" rel="noopener noreferrer">
+                                        {{ date.zoom_meeting_id }} <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
                                     {% else %}
                                     <span class="text-muted">Not set</span>
                                     {% endif %}
@@ -172,7 +174,7 @@
                 <h6>Kajabi Webhook Integration</h6>
                 <p>Attendees can be automatically registered from Kajabi form submissions or purchases. Configure your Kajabi webhook to send data to:</p>
                 <div class="mb-3">
-                    <code>{{ request.scheme }}://{{ request.get_host }}{% url 'attendee_webhook' %}</code>
+                    <code>https://{{ request.get_host }}{% url 'attendee_webhook' %}</code>
                 </div>
                 
                 <p>The system will automatically:</p>

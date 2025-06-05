@@ -252,6 +252,10 @@ def process_kajabi_webhook(data, request):
             # Extract date from payload using the form_date_field from the webinar
             date_str = payload.get(webinar.form_date_field, '')
             
+            # Debug logging
+            logger.info(f"Form submission extraction - Webinar: {webinar.name}, form_date_field: '{webinar.form_date_field}'")
+            logger.info(f"Extracted - first_name: '{first_name}', email: '{email}', date_str: '{date_str}'")
+            
         elif event_type == 'purchase.created':
             # Process purchase event
             payload = data.get('payload', {})
