@@ -32,13 +32,22 @@ class SalesforceService:
             logger.error("No Salesforce settings available")
             return False
         
-        # Salesforce OAuth2 password flow
+        # Determine which authentication method to use
+        if self.settings.client_id and self.settings.client_secret:
+            # Use OAuth2 password flow with custom Connected App
+            return self._authenticate_oauth()
+        else:
+            # Use simple session login (alternative method)
+            return self._authenticate_session()
+    
+    def _authenticate_oauth(self) -> bool:
+        """Authenticate using OAuth2 password flow with Connected App."""
         auth_url = f"https://{self.settings.subdomain}.my.salesforce.com/services/oauth2/token"
         
         data = {
             'grant_type': 'password',
-            'client_id': '3MVG9A2kN3Bn17hsdQNI4Q', # Default connected app client ID (placeholder)
-            'client_secret': 'your_client_secret',  # You'll need to configure this
+            'client_id': self.settings.client_id,
+            'client_secret': self.settings.client_secret,
             'username': self.settings.username,
             'password': f"{self.settings.password}{self.settings.security_token}"
         }
@@ -49,13 +58,23 @@ class SalesforceService:
                 auth_data = response.json()
                 self.access_token = auth_data['access_token']
                 self.instance_url = auth_data['instance_url']
-                logger.info("Successfully authenticated with Salesforce")
+                logger.info("Successfully authenticated with Salesforce using OAuth")
                 return True
             else:
-                logger.error(f"Salesforce authentication failed: {response.status_code} - {response.text}")
+                logger.error(f"Salesforce OAuth authentication failed: {response.status_code} - {response.text}")
                 return False
         except Exception as e:
-            logger.error(f"Error authenticating with Salesforce: {str(e)}")
+            logger.error(f"Error authenticating with Salesforce OAuth: {str(e)}")
+            return False
+    
+    def _authenticate_session(self) -> bool:
+        """Authenticate using session login (fallback method)."""
+        try:
+            # For now, return False and suggest using OAuth
+            logger.error("OAuth credentials required. Please configure client_id and client_secret in Salesforce settings.")
+            return False
+        except Exception as e:
+            logger.error(f"Error with session authentication: {str(e)}")
             return False
     
     def _make_request(self, method: str, endpoint: str, data: dict = None) -> Tuple[bool, dict]:

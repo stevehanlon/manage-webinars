@@ -50,22 +50,34 @@
                 <h6 class="mb-0">Setup Instructions</h6>
             </div>
             <div class="card-body">
+                <h6 class="text-primary">Step 1: Get Security Token</h6>
                 <ol class="small">
                     <li>Log into your Salesforce org</li>
                     <li>Go to Setup → Users → Users</li>
                     <li>Click on your user profile</li>
-                    <li>Click "Reset My Security Token" to get your security token</li>
-                    <li>Check your email for the security token</li>
-                    <li>For subdomain, use the part before .salesforce.com in your org URL</li>
+                    <li>Click "Reset My Security Token"</li>
+                    <li>Check your email for the token</li>
+                </ol>
+                
+                <h6 class="text-primary mt-3">Step 2: Create Connected App</h6>
+                <ol class="small">
+                    <li>Go to Setup → Apps → App Manager</li>
+                    <li>Click "New Connected App"</li>
+                    <li>Fill in basic information</li>
+                    <li>Check "Enable OAuth Settings"</li>
+                    <li>Callback URL: <code>https://localhost</code></li>
+                    <li>Selected OAuth Scopes: "Full access (full)"</li>
+                    <li>Save and copy Consumer Key & Secret</li>
                 </ol>
                 
                 <div class="alert alert-info small mt-3">
-                    <strong>Example:</strong><br>
-                    If your Salesforce URL is <code>mycompany.salesforce.com</code>, your subdomain is <code>mycompany</code>
+                    <strong>Subdomain Example:</strong><br>
+                    URL: <code>mycompany.salesforce.com</code><br>
+                    Subdomain: <code>mycompany</code>
                 </div>
                 
-                <div class="alert alert-warning small mt-3">
-                    <strong>Note:</strong> These settings are prepared for future Salesforce integrations. No active integration is currently implemented.
+                <div class="alert alert-success small mt-3">
+                    <strong>Active Integration:</strong> Attendee data will be automatically synced to Salesforce with Organizations, Contacts, and Tasks.
                 </div>
             </div>
         </div>

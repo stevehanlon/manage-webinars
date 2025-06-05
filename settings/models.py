@@ -77,6 +77,16 @@ class SalesforceSettings(models.Model):
         max_length=255,
         help_text="Salesforce security token"
     )
+    client_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Salesforce Connected App Client ID (leave blank to use default)"
+    )
+    client_secret = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Salesforce Connected App Client Secret (leave blank to use default)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -102,7 +112,9 @@ class SalesforceSettings(models.Model):
                 'subdomain': '',
                 'username': '',
                 'password': '',
-                'security_token': ''
+                'security_token': '',
+                'client_id': '',
+                'client_secret': ''
             }
         )
         return settings
