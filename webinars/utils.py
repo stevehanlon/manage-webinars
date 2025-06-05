@@ -10,13 +10,18 @@ logger = logging.getLogger(__name__)
 def parse_webinar_date(date_str):
     """
     Parse a date string from Kajabi webinar form or checkout.
-    Returns a datetime object or None if parsing fails.
+    Returns a datetime object, 'on_demand' string, or None if parsing fails.
     
     Examples:
     - "21 August, 10-11:00 BST"
     - "19 June, 10-11:00 BST"
+    - "on demand" (case insensitive)
     """
     try:
+        # Check if this is an "on demand" date (case insensitive)
+        if 'on demand' in date_str.lower():
+            return 'on_demand'
+        
         # Extract date and time parts
         # Match patterns like "21 August, 10-11:00 BST" or "19 June, 10-11:00 BST"
         match = re.match(r'(\d+)\s+([A-Za-z]+),\s+(\d+)(?:-\d+)?:(\d+)', date_str)
@@ -114,6 +119,30 @@ def find_webinar_date(webinar, date_time):
         return dates.first()
     
     return None
+
+
+def find_or_create_on_demand_webinar_date(webinar):
+    """
+    Find an existing on-demand webinar date or create one.
+    Returns the found or created on-demand webinar date.
+    """
+    from .models import WebinarDate
+    
+    # First try to find an existing on-demand date for this webinar
+    existing_on_demand = webinar.active_dates().filter(on_demand=True).first()
+    if existing_on_demand:
+        return existing_on_demand
+    
+    # Create a new on-demand date
+    # Use current date/time as placeholder since on_demand=True overrides the actual date
+    webinar_date = WebinarDate.objects.create(
+        webinar=webinar,
+        date_time=timezone.now(),
+        on_demand=True
+    )
+    
+    logger.info(f"Created on-demand webinar date for {webinar.name}")
+    return webinar_date
 
 
 def find_bundle_date(bundle, date_time):
@@ -251,32 +280,36 @@ def process_kajabi_webhook(data, request):
         if not all([first_name, email, date_str]):
             return False, "Missing required fields: first_name, email, or date", None
         
-        # Parse date string to datetime
+        # Parse date string to datetime or 'on_demand'
         parsed_date = parse_webinar_date(date_str)
         if not parsed_date:
             return False, f"Could not parse date: {date_str}", None
         
-        # Find matching webinar date (no auto-creation)
-        webinar_date = find_webinar_date(webinar, parsed_date)
-        if not webinar_date:
-            # Send error email for unrecognized date
-            attendee_data = {
-                'first_name': first_name,
-                'last_name': last_name,
-                'email': email,
-                'event_type': event_type,
-                'date_str': date_str,
-                'parsed_date': parsed_date.isoformat() if parsed_date else None
-            }
-            send_unrecognized_date_error_email(
-                error_email=webinar.error_notification_email,
-                webinar_or_bundle_name=webinar.name,
-                date_str=date_str,
-                parsed_date=parsed_date,
-                webhook_data=attendee_data,
-                is_bundle=False
-            )
-            return False, f"No webinar date found for {date_str}. Error email sent to {webinar.error_notification_email}.", None
+        # Handle on-demand webinars
+        if parsed_date == 'on_demand':
+            webinar_date = find_or_create_on_demand_webinar_date(webinar)
+        else:
+            # Find matching webinar date (no auto-creation for regular dates)
+            webinar_date = find_webinar_date(webinar, parsed_date)
+            if not webinar_date:
+                # Send error email for unrecognized date
+                attendee_data = {
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'email': email,
+                    'event_type': event_type,
+                    'date_str': date_str,
+                    'parsed_date': parsed_date.isoformat() if parsed_date else None
+                }
+                send_unrecognized_date_error_email(
+                    error_email=webinar.error_notification_email,
+                    webinar_or_bundle_name=webinar.name,
+                    date_str=date_str,
+                    parsed_date=parsed_date,
+                    webhook_data=attendee_data,
+                    is_bundle=False
+                )
+                return False, f"No webinar date found for {date_str}. Error email sent to {webinar.error_notification_email}.", None
         
         # Create or update attendee
         attendee, created = Attendee.objects.get_or_create(
@@ -295,8 +328,20 @@ def process_kajabi_webhook(data, request):
             attendee.last_name = last_name
             attendee.save()
         
-        # Try to register attendee in Zoom if webinar has Zoom meeting ID
-        if webinar_date.zoom_meeting_id and not attendee.zoom_registrant_id:
+        # For on-demand webinars, activate immediately
+        if webinar_date.on_demand and not attendee.activation_sent_at:
+            try:
+                from .activation_service import activate_attendee
+                success, activation_message = activate_attendee(attendee)
+                if success:
+                    logger.info(f"Immediately activated on-demand attendee {email}: {activation_message}")
+                else:
+                    logger.warning(f"Failed to activate on-demand attendee {email}: {activation_message}")
+            except Exception as e:
+                logger.error(f"Error activating on-demand attendee {email}: {str(e)}")
+        
+        # Try to register attendee in Zoom if webinar has Zoom meeting ID and is not on-demand
+        if webinar_date.zoom_meeting_id and not webinar_date.on_demand and not attendee.zoom_registrant_id:
             try:
                 from .zoom_service import ZoomService
                 zoom_service = ZoomService()
@@ -329,13 +374,22 @@ def process_kajabi_webhook(data, request):
         
         status = "Created" if created else "Updated"
         zoom_status = ""
-        if webinar_date.zoom_meeting_id:
+        date_display = "On Demand" if webinar_date.on_demand else webinar_date.date_time
+        
+        if webinar_date.zoom_meeting_id and not webinar_date.on_demand:
             if attendee.zoom_registrant_id:
                 zoom_status = " and registered in Zoom"
             elif attendee.zoom_registration_error:
                 zoom_status = " (Zoom registration failed)"
+        elif webinar_date.on_demand:
+            if attendee.activation_sent_at and attendee.activation_success:
+                zoom_status = " (on-demand - activated immediately)"
+            elif attendee.activation_sent_at and not attendee.activation_success:
+                zoom_status = " (on-demand - activation failed)"
+            else:
+                zoom_status = " (on-demand - no Zoom registration needed)"
         
-        return True, f"{status} attendee for {webinar.name} on {webinar_date.date_time}{zoom_status}", attendee.id
+        return True, f"{status} attendee for {webinar.name} on {date_display}{zoom_status}", attendee.id
     
     except Exception as e:
         error_message = f"Error processing webhook: {str(e)}"

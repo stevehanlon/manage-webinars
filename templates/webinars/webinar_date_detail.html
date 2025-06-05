@@ -10,7 +10,9 @@
             <ol class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
                 <li class="breadcrumb-item"><a href="{% url 'webinar_detail' webinar_date.webinar.id %}">{{ webinar_date.webinar.name }}</a></li>
-                <li class="breadcrumb-item active" aria-current="page">{{ webinar_date.date_time|date:"M d, Y - H:i" }}</li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    {% if webinar_date.on_demand %}On Demand{% else %}{{ webinar_date.date_time|date:"M d, Y - H:i" }}{% endif %}
+                </li>
             </ol>
         </nav>
     </div>
@@ -19,15 +21,24 @@
 <div class="row mb-4">
     <div class="col-md-8">
         <h1>{{ webinar_date.webinar.name }}</h1>
+        {% if webinar_date.on_demand %}
+        <h3>On Demand <span class="badge bg-info">On-Demand Access</span></h3>
+        {% else %}
         <h3>{{ webinar_date.date_time|date:"F d, Y - H:i" }}</h3>
+        {% endif %}
         <p>
-            {% if webinar_date.zoom_meeting_id %}
-            <strong>Zoom Webinar ID:</strong> 
-            <a href="https://www.zoom.us/webinar/{{ webinar_date.zoom_meeting_id }}" target="_blank" rel="noopener noreferrer">
-                {{ webinar_date.zoom_meeting_id }} <i class="bi bi-external-link"></i>
-            </a><br>
+            {% if webinar_date.on_demand %}
+            <strong>Type:</strong> <span class="text-info">On-Demand Webinar</span><br>
+            <strong>Zoom Integration:</strong> <span class="text-muted">Not applicable for on-demand</span><br>
             {% else %}
-            <strong>Zoom Webinar ID:</strong> <span class="text-muted">Not set</span><br>
+                {% if webinar_date.zoom_meeting_id %}
+                <strong>Zoom Webinar ID:</strong> 
+                <a href="https://www.zoom.us/webinar/{{ webinar_date.zoom_meeting_id }}" target="_blank" rel="noopener noreferrer">
+                    {{ webinar_date.zoom_meeting_id }} <i class="bi bi-external-link"></i>
+                </a><br>
+                {% else %}
+                <strong>Zoom Webinar ID:</strong> <span class="text-muted">Not set</span><br>
+                {% endif %}
             {% endif %}
             <strong>Direct Attendees:</strong> {{ webinar_date.attendee_count }}<br>
             <strong>Total Attendees (including bundles):</strong> {{ webinar_date.total_attendee_count }}<br>
@@ -37,9 +48,10 @@
     </div>
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
         <div class="btn-group">
-            {% if not webinar_date.zoom_meeting_id %}
+            {% if not webinar_date.zoom_meeting_id and not webinar_date.on_demand %}
             <a href="{% url 'create_zoom_webinar' webinar_date.id %}" class="btn btn-outline-info">Create Zoom Webinar</a>
             {% endif %}
+            {% if not webinar_date.on_demand %}
             <button class="btn btn-outline-success" onclick="sendCalendarInvite({{ webinar_date.id }})" id="calendar-invite-btn"
                     {% if webinar_date.calendar_invite_sent_at and webinar_date.calendar_invite_success %}disabled{% endif %}>
                 <i class="bi bi-calendar-plus"></i> 
@@ -49,6 +61,7 @@
                     Send Calendar Invite
                 {% endif %}
             </button>
+            {% endif %}
             <a href="{% url 'webinar_date_update' webinar_date.id %}" class="btn btn-outline-primary">Edit Date</a>
             {% if not webinar_date.has_attendees %}
             <a href="{% url 'webinar_date_delete' webinar_date.id %}" class="btn btn-outline-danger">Delete Date</a>

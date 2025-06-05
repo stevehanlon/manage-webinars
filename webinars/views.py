@@ -503,9 +503,21 @@ def handle_direct_webhook(request, data):
         attendee.last_name = last_name or ''
         attendee.save()
     
-    # Try to register attendee in Zoom if webinar has Zoom meeting ID
+    # For on-demand webinars, activate immediately
+    if webinar_date.on_demand and not attendee.activation_sent_at:
+        try:
+            from .activation_service import activate_attendee
+            success, activation_message = activate_attendee(attendee)
+            if success:
+                logger.info(f"Immediately activated on-demand attendee {email}: {activation_message}")
+            else:
+                logger.warning(f"Failed to activate on-demand attendee {email}: {activation_message}")
+        except Exception as e:
+            logger.error(f"Error activating on-demand attendee {email}: {str(e)}")
+    
+    # Try to register attendee in Zoom if webinar has Zoom meeting ID and is not on-demand
     zoom_status = ""
-    if webinar_date.zoom_meeting_id and not attendee.zoom_registrant_id:
+    if webinar_date.zoom_meeting_id and not webinar_date.on_demand and not attendee.zoom_registrant_id:
         try:
             from .zoom_service import ZoomService
             from django.utils import timezone
@@ -539,12 +551,20 @@ def handle_direct_webhook(request, data):
             attendee.save()
             logger.error(error_msg)
             zoom_status = " (Zoom registration error)"
+    elif webinar_date.on_demand:
+        if attendee.activation_sent_at and attendee.activation_success:
+            zoom_status = " (on-demand - activated immediately)"
+        elif attendee.activation_sent_at and not attendee.activation_success:
+            zoom_status = " (on-demand - activation failed)"
+        else:
+            zoom_status = " (on-demand - no Zoom registration needed)"
     
     status = "Created" if created else "Updated"
+    date_display = "On Demand" if webinar_date.on_demand else webinar_date.date_time
     logger.info(f"Direct webhook success - {status} attendee {attendee.id} for {webinar_date.webinar.name}")
     return JsonResponse({
         'status': 'success',
-        'message': f'{status} attendee for {webinar_date.webinar.name} on {webinar_date.date_time}{zoom_status}',
+        'message': f'{status} attendee for {webinar_date.webinar.name} on {date_display}{zoom_status}',
         'attendee_id': attendee.id
     })
 

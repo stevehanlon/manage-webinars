@@ -62,12 +62,15 @@ class WebinarDate(BaseModel):
     """Model representing a specific date for a webinar."""
     webinar = models.ForeignKey(Webinar, on_delete=models.CASCADE)
     date_time = models.DateTimeField()
+    on_demand = models.BooleanField(default=False, help_text="Whether this is an on-demand webinar (no live date)")
     zoom_meeting_id = models.CharField(max_length=100, blank=True, null=True)
     calendar_invite_sent_at = models.DateTimeField(null=True, blank=True, help_text="When calendar invites were sent to staff")
     calendar_invite_success = models.BooleanField(null=True, blank=True, help_text="Whether calendar invite sending was successful")
     calendar_invite_error = models.TextField(blank=True, help_text="Error message if calendar invite failed")
     
     def __str__(self):
+        if self.on_demand:
+            return f"{self.webinar.name} - On Demand"
         return f"{self.webinar.name} - {self.date_time.strftime('%Y-%m-%d %H:%M')}"
     
     def get_absolute_url(self):
@@ -167,14 +170,22 @@ class Attendee(BaseModel):
         """Return True if attendee can be registered in Zoom (has meeting ID but not registered)."""
         return (
             self.webinar_date.zoom_meeting_id and 
+            not self.webinar_date.on_demand and 
             not self.zoom_registrant_id and 
             not self.is_deleted
         )
     
     @property
     def needs_activation(self):
-        """Check if this attendee needs activation (webinar ended 2+ hours ago)."""
-        if self.activation_sent_at or not self.webinar_date.date_time:
+        """Check if this attendee needs activation (webinar ended 2+ hours ago or is on-demand)."""
+        if self.activation_sent_at:
+            return False
+        
+        # On-demand webinars should be activated immediately
+        if self.webinar_date.on_demand:
+            return True
+            
+        if not self.webinar_date.date_time:
             return False
         
         # Check if webinar ended 2+ hours ago
