@@ -50,24 +50,14 @@
                 <h6 class="mb-0">Setup Instructions</h6>
             </div>
             <div class="card-body">
-                <h6 class="text-primary">Step 1: Get Security Token</h6>
+                <h6 class="text-primary">Setup Instructions</h6>
                 <ol class="small">
                     <li>Log into your Salesforce org</li>
                     <li>Go to Setup → Users → Users</li>
                     <li>Click on your user profile</li>
                     <li>Click "Reset My Security Token"</li>
-                    <li>Check your email for the token</li>
-                </ol>
-                
-                <h6 class="text-primary mt-3">Step 2: Create Connected App</h6>
-                <ol class="small">
-                    <li>Go to Setup → Apps → App Manager</li>
-                    <li>Click "New Connected App"</li>
-                    <li>Fill in basic information</li>
-                    <li>Check "Enable OAuth Settings"</li>
-                    <li>Callback URL: <code>https://localhost</code></li>
-                    <li>Selected OAuth Scopes: "Full access (full)"</li>
-                    <li>Save and copy Consumer Key & Secret</li>
+                    <li>Check your email for the security token</li>
+                    <li>Fill in the form with your credentials</li>
                 </ol>
                 
                 <div class="alert alert-info small mt-3">
@@ -77,7 +67,11 @@
                 </div>
                 
                 <div class="alert alert-success small mt-3">
-                    <strong>Active Integration:</strong> Attendee data will be automatically synced to Salesforce with Organizations, Contacts, and Tasks.
+                    <strong>Active Integration:</strong> Uses simple username/password authentication. Attendee data will be automatically synced to Salesforce with Organizations, Contacts, and Tasks.
+                </div>
+                
+                <div class="alert alert-warning small mt-3">
+                    <strong>Note:</strong> Client ID and Client Secret fields are optional and not required for the current authentication method.
                 </div>
             </div>
         </div>
