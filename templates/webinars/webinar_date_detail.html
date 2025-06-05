@@ -132,7 +132,6 @@
                                     {% if attendee.zoom_invite_link %}
                                     <div class="mt-1">
                                         <small><button class="btn btn-link btn-sm p-0" onclick="copyToClipboard('{{ attendee.zoom_invite_link }}', this)" title="Copy invite link to clipboard">Invite link</button></small>
-                                        <br><small><button class="btn btn-link btn-sm p-0" onclick="resendZoomInvite({{ attendee.id }})" title="Resend invitation email">Resend invite</button></small>
                                     </div>
                                     {% endif %}
                                     {% elif attendee.zoom_registration_status == "Failed" %}
@@ -399,30 +398,5 @@ function copyToClipboard(text, button) {
     });
 }
 
-function resendZoomInvite(attendeeId) {
-    if (!confirm('Resend Zoom invitation email to this attendee?')) {
-        return;
-    }
-    
-    fetch(`/attendees/${attendeeId}/resend-zoom-invite/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCookie('csrftoken'),
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Zoom invitation email resent successfully!');
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error: ' + error.message);
-    });
-}
 </script>
 {% endblock %}
