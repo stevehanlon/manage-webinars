@@ -1132,6 +1132,7 @@ def forthcoming_webinars(request):
     current_time = timezone.now()
     webinar_dates = WebinarDate.objects.filter(
         deleted_at=None,
+        webinar__deleted_at=None,  # Also exclude dates from deleted webinars
         on_demand=False,
         date_time__gte=current_time
     ).select_related('webinar').order_by('date_time')
@@ -1139,6 +1140,7 @@ def forthcoming_webinars(request):
     # Get bundle dates with future webinars
     bundle_dates = BundleDate.objects.filter(
         deleted_at=None,
+        bundle__deleted_at=None,  # Also exclude dates from deleted bundles
         date__gte=current_time.date()
     ).select_related('bundle').prefetch_related('webinar_dates').order_by('date')
     
