@@ -130,18 +130,22 @@ class SalesforceService:
             return False, "", "Failed to connect to Salesforce"
         
         try:
+            # Start with required fields only
             contact_data = {
                 'FirstName': first_name,
                 'LastName': last_name or 'Unknown',  # LastName is required
-                'Email': email,
-                'In_Mailchimp__c': True,  # Set custom fields as specified
-                'Opted_IN__c': True
+                'Email': email
             }
             
             # Add Account association if provided
             if account_id:
                 contact_data['AccountId'] = account_id
             
+            # Add custom fields (if they don't exist, Salesforce will ignore them)
+            contact_data['In_Mailchimp__c'] = True
+            contact_data['Opted_IN__c'] = True
+            
+            logger.info(f"Creating contact with data: {contact_data}")
             result = self.sf.Contact.create(contact_data)
             
             if result['success']:
@@ -167,16 +171,25 @@ class SalesforceService:
             # Rachel CLINTON's User ID
             assigned_to_id = "0054J000002nMfC"
             
+            # Start with minimal required fields
             task_data = {
                 'WhoId': contact_id,  # Contact the task is related to
                 'OwnerId': assigned_to_id,  # User the task is assigned to
                 'Subject': subject,
-                'Description': description,
-                'Status': 'Completed',  # Task is completed
-                'ActivityDate': datetime.now().date().isoformat(),  # Due date (today)
-                'Type': 'Other'
+                'Status': 'Completed'  # Task is completed
             }
             
+            # Add optional fields safely
+            if description:
+                task_data['Description'] = description
+                
+            # Try to add ActivityDate (some orgs might restrict this)
+            try:
+                task_data['ActivityDate'] = datetime.now().date().isoformat()
+            except:
+                pass  # Skip if not allowed
+            
+            logger.info(f"Creating task with data: {task_data}")
             result = self.sf.Task.create(task_data)
             
             if result['success']:
