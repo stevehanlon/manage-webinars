@@ -284,17 +284,28 @@ class BundleAttendeeCreateView(LoginRequiredMixin, CreateView):
 @csrf_exempt
 def attendee_webhook(request):
     """Webhook endpoint for registering attendees from Kajabi."""
+    import logging
+    logger = logging.getLogger('webinars')
+    
+    # Log all inbound requests
+    logger.info(f"Webhook request received - Method: {request.method}, Path: {request.path}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    
     # Always return 200 OK for non-POST requests (GET, HEAD, OPTIONS)
     if request.method != 'POST':
         from django.http import HttpResponse
+        logger.info(f"Non-POST request ({request.method}) - returning 200 OK")
         return HttpResponse('OK', content_type='text/plain', status=200)
     
     if request.method == 'POST':
+        # Log request body
+        body_unicode = request.body.decode('utf-8')
+        logger.info(f"POST body: {body_unicode}")
+        
         try:
             # Try to parse JSON data from the request body
             try:
                 import json
-                body_unicode = request.body.decode('utf-8')
                 if body_unicode:
                     data = json.loads(body_unicode)
                 else:
@@ -302,22 +313,29 @@ def attendee_webhook(request):
             except json.JSONDecodeError:
                 # Fall back to form data if not valid JSON
                 data = request.POST.dict()
+                logger.info(f"Parsed as form data: {data}")
             
             # Support direct API calls with specific parameters
             if 'webinar_date_id' in data or 'webinar_date_id' in request.GET:
-                return handle_direct_webhook(request, data)
+                logger.info(f"Processing as direct webhook call")
+                result = handle_direct_webhook(request, data)
+                logger.info(f"Direct webhook result - Status: {result.status_code}")
+                return result
             
             # Process Kajabi webhook data
+            logger.info(f"Processing Kajabi webhook data")
             from .utils import process_kajabi_webhook
             success, message, attendee_id = process_kajabi_webhook(data, request)
             
             if success:
+                logger.info(f"Webhook processed successfully - Message: {message}, Attendee ID: {attendee_id}")
                 return JsonResponse({
                     'status': 'success',
                     'message': message,
                     'attendee_id': attendee_id
                 })
             else:
+                logger.warning(f"Webhook processing failed - Message: {message}")
                 return JsonResponse({
                     'status': 'error',
                     'message': message
@@ -327,10 +345,9 @@ def attendee_webhook(request):
             import traceback
             error_message = f"Unhandled exception: {str(e)}\n{traceback.format_exc()}"
             
-            # Log the error
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(error_message)
+            # Log the error (using the same logger instance)
+            logger.error(f"Webhook exception - {error_message}")
+            logger.error(f"Request data that caused error: {data}")
             
             # Send error notification email
             from .utils import send_webhook_error_email
@@ -358,8 +375,12 @@ def attendee_webhook(request):
 
 def handle_direct_webhook(request, data):
     """Handle direct webhook API calls with specific parameters."""
+    import logging
+    logger = logging.getLogger('webinars')
+    
     # Get data from either JSON body, POST data, or query parameters
     params = {**request.GET.dict(), **data}
+    logger.info(f"Direct webhook parameters: {params}")
     
     webinar_date_id = params.get('webinar_date_id')
     first_name = params.get('first_name')
@@ -368,6 +389,7 @@ def handle_direct_webhook(request, data):
     
     # Validate required fields
     if not all([webinar_date_id, first_name, email]):
+        logger.warning(f"Direct webhook missing required fields - webinar_date_id: {webinar_date_id}, first_name: {first_name}, email: {email}")
         return JsonResponse({
             'status': 'error',
             'message': 'Missing required fields: webinar_date_id, first_name, email'
@@ -377,6 +399,7 @@ def handle_direct_webhook(request, data):
     try:
         webinar_date = WebinarDate.objects.get(pk=webinar_date_id, deleted_at=None)
     except WebinarDate.DoesNotExist:
+        logger.warning(f"Direct webhook webinar date not found: {webinar_date_id}")
         return JsonResponse({
             'status': 'error',
             'message': f'Webinar date not found: {webinar_date_id}'
@@ -400,6 +423,7 @@ def handle_direct_webhook(request, data):
         attendee.save()
     
     status = "Created" if created else "Updated"
+    logger.info(f"Direct webhook success - {status} attendee {attendee.id} for {webinar_date.webinar.name}")
     return JsonResponse({
         'status': 'success',
         'message': f'{status} attendee for {webinar_date.webinar.name} on {webinar_date.date_time}',
