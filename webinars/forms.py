@@ -27,8 +27,19 @@ class WebinarDateForm(forms.ModelForm):
         fields = ['date_time', 'zoom_meeting_id']
         widgets = {
             'date_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
-            'zoom_meeting_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'zoom_meeting_id': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter Zoom meeting ID (numbers only)'
+            }),
         }
+    
+    def clean_zoom_meeting_id(self):
+        """Strip spaces from Zoom meeting ID."""
+        zoom_id = self.cleaned_data.get('zoom_meeting_id', '')
+        if zoom_id:
+            # Remove all spaces and non-digit characters
+            zoom_id = ''.join(filter(str.isdigit, zoom_id))
+        return zoom_id if zoom_id else None
 
 
 class AttendeeForm(forms.ModelForm):
