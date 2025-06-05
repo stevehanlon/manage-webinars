@@ -32,18 +32,15 @@ class SalesforceService:
         try:
             from simple_salesforce import Salesforce
             
-            # Build the domain URL
-            if self.settings.subdomain:
-                domain = f"https://{self.settings.subdomain}.my.salesforce.com"
-            else:
-                domain = None  # Use default
-            
             # Connect to Salesforce
+            # Start with the simplest approach - let simple-salesforce handle the domain
+            logger.info(f"Attempting to connect to Salesforce with username: {self.settings.username}")
+            
             self.sf = Salesforce(
                 username=self.settings.username,
                 password=self.settings.password,
-                security_token=self.settings.security_token,
-                domain=domain
+                security_token=self.settings.security_token
+                # Don't specify domain initially - let simple-salesforce auto-detect
             )
             
             logger.info("Successfully connected to Salesforce")
