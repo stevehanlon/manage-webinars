@@ -594,3 +594,74 @@ def send_webhook_error_email(to_email, error_message, webhook_data):
     
     # Use the enhanced email service
     enhanced_send_webhook_error_email(to_email, error_message, webhook_data)
+
+
+def process_clinic_booking(clinic_booking):
+    """
+    Process a clinic booking by creating Zoom meeting and sending calendar invites.
+    
+    Args:
+        clinic_booking: ClinicBooking instance
+        
+    Returns:
+        None - Updates are made directly to the clinic_booking instance
+    """
+    logger.info(f"Processing clinic booking {clinic_booking.id} for {clinic_booking.email}")
+    
+    # Create Zoom meeting
+    try:
+        from .zoom_service import ZoomService
+        
+        zoom_service = ZoomService()
+        result = zoom_service.create_meeting(
+            topic=clinic_booking.zoom_meeting_subject,
+            start_time=clinic_booking.clinic_date,
+            duration=30,  # 30 minute clinic sessions
+            agenda=f"Clinic session for {clinic_booking.full_name} from {clinic_booking.organization or 'N/A'}. Question: {clinic_booking.question[:100]}{'...' if len(clinic_booking.question) > 100 else ''}",
+            attendee_email=clinic_booking.email,
+            attendee_name=clinic_booking.full_name
+        )
+        
+        if result['success']:
+            clinic_booking.zoom_meeting_id = result['meeting_id']
+            clinic_booking.zoom_join_url = result['join_url']
+            clinic_booking.zoom_created_at = timezone.now()
+            clinic_booking.zoom_creation_error = ''
+            logger.info(f"Created Zoom meeting {result['meeting_id']} for clinic booking {clinic_booking.id}")
+        else:
+            clinic_booking.zoom_creation_error = result['error']
+            logger.warning(f"Failed to create Zoom meeting for clinic booking {clinic_booking.id}: {result['error']}")
+        
+        clinic_booking.save()
+        
+    except Exception as e:
+        error_msg = f"Error creating Zoom meeting for clinic booking: {str(e)}"
+        clinic_booking.zoom_creation_error = error_msg
+        clinic_booking.save()
+        logger.error(error_msg)
+    
+    # Send calendar invites
+    try:
+        from .ms365_service import MS365CalendarService
+        
+        ms365_service = MS365CalendarService()
+        success, message = ms365_service.send_clinic_calendar_invite(clinic_booking)
+        
+        if success:
+            clinic_booking.calendar_invite_sent_at = timezone.now()
+            clinic_booking.calendar_invite_success = True
+            clinic_booking.calendar_invite_error = ''
+            logger.info(f"Sent calendar invites for clinic booking {clinic_booking.id}: {message}")
+        else:
+            clinic_booking.calendar_invite_success = False
+            clinic_booking.calendar_invite_error = message
+            logger.warning(f"Failed to send calendar invites for clinic booking {clinic_booking.id}: {message}")
+        
+        clinic_booking.save()
+        
+    except Exception as e:
+        error_msg = f"Error sending calendar invites for clinic booking: {str(e)}"
+        clinic_booking.calendar_invite_error = error_msg
+        clinic_booking.calendar_invite_success = False
+        clinic_booking.save()
+        logger.error(error_msg)

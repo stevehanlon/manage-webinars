@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
 
-from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, Download
+from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, Download, ClinicBooking
 from .forms import WebinarForm, WebinarDateForm, AttendeeForm, WebinarBundleForm, BundleDateForm, BundleAttendeeForm
 
 
@@ -1482,4 +1482,272 @@ def sync_download_salesforce(request, download_id):
         messages.error(request, error_msg)
         return JsonResponse({'success': False, 'message': error_msg}, status=500)
 
+
+# Clinic Booking Views
+@login_required
+def clinic_booking_list(request):
+    """Display all clinic bookings with pagination."""
+    from django.core.paginator import Paginator
+    
+    clinic_bookings = ClinicBooking.objects.filter(deleted_at=None).order_by('-created_at')
+    
+    # Filter by organization if requested
+    organization_filter = request.GET.get('organization')
+    if organization_filter:
+        clinic_bookings = clinic_bookings.filter(organization__icontains=organization_filter)
+    
+    # Filter by Salesforce sync status if requested
+    sync_status_filter = request.GET.get('sync_status')
+    if sync_status_filter == 'synced':
+        clinic_bookings = clinic_bookings.exclude(salesforce_synced_at=None)
+    elif sync_status_filter == 'pending':
+        clinic_bookings = clinic_bookings.filter(salesforce_sync_pending=True, salesforce_synced_at=None)
+    elif sync_status_filter == 'failed':
+        clinic_bookings = clinic_bookings.exclude(salesforce_sync_error='')
+    
+    # Filter by date range if requested
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    if date_from:
+        try:
+            from datetime import datetime
+            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+            clinic_bookings = clinic_bookings.filter(clinic_date__date__gte=date_from_parsed)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime
+            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+            clinic_bookings = clinic_bookings.filter(clinic_date__date__lte=date_to_parsed)
+        except ValueError:
+            pass
+    
+    # Paginate results
+    paginator = Paginator(clinic_bookings, 50)  # Show 50 bookings per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, 'webinars/clinic_booking_list.html', {
+        'page_obj': page_obj,
+        'organization_filter': organization_filter,
+        'sync_status_filter': sync_status_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+    })
+
+
+@login_required
+def clinic_booking_detail(request, pk):
+    """View details of a specific clinic booking."""
+    clinic_booking = get_object_or_404(ClinicBooking, pk=pk, deleted_at=None)
+    
+    return render(request, 'webinars/clinic_booking_detail.html', {
+        'clinic_booking': clinic_booking,
+    })
+
+
+@login_required
+def sync_clinic_booking_salesforce(request, clinic_booking_id):
+    """Manually sync a clinic booking to Salesforce."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    clinic_booking = get_object_or_404(ClinicBooking, pk=clinic_booking_id, deleted_at=None)
+    
+    try:
+        from .salesforce_service import SalesforceService
+        
+        sf_service = SalesforceService()
+        success, message = sf_service.sync_clinic_booking(clinic_booking)
+        
+        if success:
+            messages.success(request, f'Successfully synced {clinic_booking.email} to Salesforce')
+            return JsonResponse({'success': True, 'message': message})
+        else:
+            messages.error(request, f'Failed to sync {clinic_booking.email} to Salesforce: {message}')
+            return JsonResponse({'success': False, 'message': message}, status=400)
+            
+    except Exception as e:
+        error_msg = f"Error syncing to Salesforce: {str(e)}"
+        messages.error(request, error_msg)
+        return JsonResponse({'success': False, 'message': error_msg}, status=500)
+
+
+@csrf_exempt
+def clinic_booking_webhook(request):
+    """Webhook endpoint for clinic booking form submissions."""
+    import logging
+    import time
+    from .models import WebhookLog
+    
+    logger = logging.getLogger("webinars")
+    start_time = time.time()
+    
+    # Log all inbound requests
+    logger.info(f"Clinic booking webhook request received - Method: {request.method}, Path: {request.path}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    
+    # Always return 200 OK for non-POST requests (GET, HEAD, OPTIONS)
+    if request.method != "POST":
+        from django.http import HttpResponse
+        logger.info(f"Non-POST request ({request.method}) - returning 200 OK")
+        response = HttpResponse("OK", content_type="text/plain", status=200)
+        
+        # Save to database
+        WebhookLog.objects.create(
+            method=request.method,
+            path=request.path,
+            headers=dict(request.headers),
+            body="",
+            response_status=response.status_code,
+            response_body="OK",
+            success=True,
+            processing_time_ms=int((time.time() - start_time) * 1000)
+        )
+        
+        return response
+    
+    if request.method == "POST":
+        # Log request body
+        body_unicode = request.body.decode("utf-8")
+        logger.info(f"POST body: {body_unicode}")
+        
+        try:
+            # Try to parse JSON data from the request body
+            try:
+                import json
+                if body_unicode:
+                    data = json.loads(body_unicode)
+                else:
+                    data = {}
+            except json.JSONDecodeError:
+                # Fall back to form data if not valid JSON
+                data = request.POST.dict()
+                logger.info(f"Parsed as form data: {data}")
+            
+            # Extract fields based on expected structure
+            # For now using placeholders as requested
+            first_name = data.get("first_name", "")
+            last_name = data.get("last_name", "") or data.get("surname", "")
+            email = data.get("email", "")
+            organization = data.get("organization", "") or data.get("organisation", "")
+            clinic_date = data.get("clinic_date", "")  # Placeholder format
+            website = data.get("website", "")  # Placeholder field
+            question = data.get("question", "")
+            
+            # Validate required fields
+            if not all([first_name, last_name, email, clinic_date, question]):
+                logger.warning(f"Clinic booking webhook missing required fields - first_name: \"{first_name}\", last_name: \"{last_name}\", email: \"{email}\", clinic_date: \"{clinic_date}\", question: \"{question}\"")
+                response_data = {
+                    "status": "error",
+                    "message": "Missing required fields: first_name, last_name, email, clinic_date, question"
+                }
+                response = JsonResponse(response_data, status=400)
+                
+                # Save to database
+                WebhookLog.objects.create(
+                    method=request.method,
+                    path=request.path,
+                    headers=dict(request.headers),
+                    body=body_unicode,
+                    response_status=response.status_code,
+                    response_body=json.dumps(response_data),
+                    success=False,
+                    error_message="Missing required fields",
+                    processing_time_ms=int((time.time() - start_time) * 1000)
+                )
+                
+                return response
+            
+            # Parse clinic_date - for now treating as placeholder
+            # TODO: Implement proper date parsing once format is defined
+            clinic_datetime = timezone.now()  # Placeholder
+            try:
+                from dateutil import parser
+                clinic_datetime = parser.parse(clinic_date)
+                if timezone.is_naive(clinic_datetime):
+                    clinic_datetime = timezone.make_aware(clinic_datetime)
+            except Exception as e:
+                logger.warning(f"Could not parse clinic date \"{clinic_date}\": {e}")
+                # Keep the default datetime for now
+            
+            # Create the clinic booking record
+            clinic_booking = ClinicBooking.objects.create(
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                organization=organization,
+                clinic_date=clinic_datetime,
+                website=website,
+                question=question,
+                salesforce_sync_pending=True  # Mark for Salesforce sync
+            )
+            
+            logger.info(f"Created clinic booking record {clinic_booking.id} for {email} - {clinic_datetime}")
+            
+            # Trigger Zoom meeting creation and calendar invites
+            try:
+                from .utils import process_clinic_booking
+                process_clinic_booking(clinic_booking)
+                logger.info(f"Processed clinic booking {clinic_booking.id} - Zoom and calendar processing initiated")
+            except Exception as e:
+                logger.error(f"Error processing clinic booking {clinic_booking.id}: {e}")
+                # Do not fail the webhook - just log the error
+            
+            response_data = {
+                "status": "success",
+                "message": f"Clinic booking recorded for {email}",
+                "booking_id": clinic_booking.id
+            }
+            response = JsonResponse(response_data)
+            
+            # Save to database
+            WebhookLog.objects.create(
+                method=request.method,
+                path=request.path,
+                headers=dict(request.headers),
+                body=body_unicode,
+                response_status=response.status_code,
+                response_body=json.dumps(response_data),
+                success=True,
+                error_message="",
+                processing_time_ms=int((time.time() - start_time) * 1000)
+            )
+            
+            return response
+            
+        except Exception as e:
+            import traceback
+            error_message = f"Unhandled exception: {str(e)}\n{traceback.format_exc()}"
+            
+            # Log the error
+            logger.error(f"Clinic booking webhook exception - {error_message}")
+            logger.error(f"Request data that caused error: {data}")
+            
+            response_data = {
+                "status": "error",
+                "message": str(e)
+            }
+            response = JsonResponse(response_data, status=500)
+            
+            # Save to database
+            WebhookLog.objects.create(
+                method=request.method,
+                path=request.path,
+                headers=dict(request.headers),
+                body=body_unicode,
+                response_status=response.status_code,
+                response_body=json.dumps(response_data),
+                success=False,
+                error_message=error_message,
+                processing_time_ms=int((time.time() - start_time) * 1000)
+            )
+            
+            return response
+    
+    return JsonResponse({
+        "status": "error",
+        "message": "Method not allowed"
+    }, status=405)
 

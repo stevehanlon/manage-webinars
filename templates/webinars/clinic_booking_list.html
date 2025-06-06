@@ -1,0 +1,203 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Clinic Bookings{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Clinic Bookings</h1>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="organization" class="form-label">Organization</label>
+                            <input type="text" class="form-control" id="organization" name="organization" 
+                                   value="{{ organization_filter|default:'' }}" placeholder="Filter by organization">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="sync_status" class="form-label">Salesforce Status</label>
+                            <select class="form-select" id="sync_status" name="sync_status">
+                                <option value="">All</option>
+                                <option value="synced" {% if sync_status_filter == 'synced' %}selected{% endif %}>Synced</option>
+                                <option value="pending" {% if sync_status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="failed" {% if sync_status_filter == 'failed' %}selected{% endif %}>Failed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="date_from" class="form-label">Date From</label>
+                            <input type="date" class="form-control" id="date_from" name="date_from" 
+                                   value="{{ date_from|default:'' }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="date_to" class="form-label">Date To</label>
+                            <input type="date" class="form-control" id="date_to" name="date_to" 
+                                   value="{{ date_to|default:'' }}">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary d-block">Filter</button>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <a href="{% url 'clinic_booking_list' %}" class="btn btn-secondary d-block">Clear</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Clinic Bookings Table -->
+            <div class="card">
+                <div class="card-body">
+                    {% if page_obj %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Organization</th>
+                                        <th>Clinic Date</th>
+                                        <th>Website</th>
+                                        <th>Zoom Status</th>
+                                        <th>Calendar Status</th>
+                                        <th>Salesforce Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for booking in page_obj %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'clinic_booking_detail' booking.pk %}" class="text-decoration-none">
+                                                    {{ booking.full_name }}
+                                                </a>
+                                            </td>
+                                            <td>{{ booking.email }}</td>
+                                            <td>{{ booking.organization|default:"-" }}</td>
+                                            <td>{{ booking.clinic_date|date:"M d, Y H:i" }}</td>
+                                            <td>{{ booking.website|default:"-" }}</td>
+                                            <td>
+                                                {% if booking.zoom_status == "Created" %}
+                                                    <span class="badge bg-success">✓ {{ booking.zoom_status }}</span>
+                                                {% elif booking.zoom_status == "Failed" %}
+                                                    <span class="badge bg-danger">✗ {{ booking.zoom_status }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ booking.zoom_status }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if booking.calendar_invite_status == "Sent" %}
+                                                    <span class="badge bg-success">✓ {{ booking.calendar_invite_status }}</span>
+                                                {% elif booking.calendar_invite_status == "Failed" %}
+                                                    <span class="badge bg-danger">✗ {{ booking.calendar_invite_status }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ booking.calendar_invite_status }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if booking.salesforce_status == "Synced" %}
+                                                    <span class="badge bg-success">✓ Synced</span>
+                                                    {% if booking.salesforce_contact_url %}
+                                                        <a href="{{ booking.salesforce_contact_url }}" target="_blank" class="btn btn-sm btn-outline-primary ms-1">SF</a>
+                                                    {% endif %}
+                                                {% elif booking.salesforce_status == "Failed" %}
+                                                    <span class="badge bg-danger">✗ Failed</span>
+                                                    <button onclick="syncSalesforce({{ booking.id }})" class="btn btn-sm btn-outline-warning ms-1">Retry</button>
+                                                {% elif booking.salesforce_status == "Pending" %}
+                                                    <span class="badge bg-warning">⏳ Pending</span>
+                                                    <button onclick="syncSalesforce({{ booking.id }})" class="btn btn-sm btn-outline-primary ms-1">Sync</button>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Not scheduled</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ booking.created_at|date:"M d, Y H:i" }}</td>
+                                            <td>
+                                                <a href="{% url 'clinic_booking_detail' booking.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        {% if page_obj.has_other_pages %}
+                            <nav aria-label="Page navigation">
+                                <ul class="pagination justify-content-center">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=1{% if organization_filter %}&organization={{ organization_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">First</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if organization_filter %}&organization={{ organization_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Previous</a>
+                                        </li>
+                                    {% endif %}
+
+                                    <li class="page-item active">
+                                        <span class="page-link">
+                                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                        </span>
+                                    </li>
+
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if organization_filter %}&organization={{ organization_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Next</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if organization_filter %}&organization={{ organization_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Last</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+
+                    {% else %}
+                        <div class="text-center py-5">
+                            <h5>No clinic bookings found</h5>
+                            <p class="text-muted">There are no clinic bookings matching your criteria.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function syncSalesforce(bookingId) {
+    if (!confirm('Are you sure you want to sync this clinic booking to Salesforce?')) {
+        return;
+    }
+    
+    fetch(`/clinic-bookings/${bookingId}/sync-salesforce/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Successfully synced to Salesforce');
+            location.reload();
+        } else {
+            alert('Failed to sync to Salesforce: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while syncing to Salesforce');
+    });
+}
+</script>
+
+{% endblock %}

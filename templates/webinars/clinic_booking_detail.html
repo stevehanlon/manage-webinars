@@ -1,0 +1,219 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Clinic Booking Details - {{ clinic_booking.full_name }}{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Clinic Booking Details</h1>
+                <a href="{% url 'clinic_booking_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Clinic Bookings
+                </a>
+            </div>
+
+            <div class="row">
+                <!-- Clinic Booking Information -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Customer Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Name:</strong> {{ clinic_booking.full_name }}<br>
+                                    <strong>Email:</strong> {{ clinic_booking.email }}<br>
+                                    {% if clinic_booking.organization %}
+                                        <strong>Organization:</strong> {{ clinic_booking.organization }}<br>
+                                    {% endif %}
+                                    {% if clinic_booking.website %}
+                                        <strong>Website:</strong> <a href="{{ clinic_booking.website }}" target="_blank">{{ clinic_booking.website }}</a><br>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Clinic Date:</strong> {{ clinic_booking.clinic_date|date:"M d, Y H:i" }}<br>
+                                    <strong>Submitted:</strong> {{ clinic_booking.created_at|date:"M d, Y H:i:s" }}<br>
+                                    <strong>Last Updated:</strong> {{ clinic_booking.updated_at|date:"M d, Y H:i:s" }}<br>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Question -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Customer Question</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-0">{{ clinic_booking.question }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Zoom Meeting Details -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Zoom Meeting Details</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if clinic_booking.zoom_meeting_id %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>Meeting ID:</strong> {{ clinic_booking.zoom_meeting_id }}<br>
+                                        <strong>Status:</strong> 
+                                        {% if clinic_booking.zoom_status == "Created" %}
+                                            <span class="badge bg-success">✓ {{ clinic_booking.zoom_status }}</span>
+                                        {% elif clinic_booking.zoom_status == "Failed" %}
+                                            <span class="badge bg-danger">✗ {{ clinic_booking.zoom_status }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ clinic_booking.zoom_status }}</span>
+                                        {% endif %}
+                                        <br>
+                                        {% if clinic_booking.zoom_created_at %}
+                                            <strong>Created:</strong> {{ clinic_booking.zoom_created_at|date:"M d, Y H:i:s" }}<br>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {% if clinic_booking.zoom_join_url %}
+                                            <strong>Join URL:</strong><br>
+                                            <a href="{{ clinic_booking.zoom_join_url }}" target="_blank" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-video"></i> Join Zoom Meeting
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if clinic_booking.zoom_creation_error %}
+                                    <div class="alert alert-danger mt-3">
+                                        <strong>Error:</strong> {{ clinic_booking.zoom_creation_error }}
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-muted mb-0">No Zoom meeting created yet.</p>
+                                {% if clinic_booking.zoom_creation_error %}
+                                    <div class="alert alert-danger mt-3">
+                                        <strong>Error:</strong> {{ clinic_booking.zoom_creation_error }}
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Calendar Invite Details -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Calendar Invite Status</h5>
+                        </div>
+                        <div class="card-body">
+                            <strong>Status:</strong> 
+                            {% if clinic_booking.calendar_invite_status == "Sent" %}
+                                <span class="badge bg-success">✓ {{ clinic_booking.calendar_invite_status }}</span>
+                            {% elif clinic_booking.calendar_invite_status == "Failed" %}
+                                <span class="badge bg-danger">✗ {{ clinic_booking.calendar_invite_status }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ clinic_booking.calendar_invite_status }}</span>
+                            {% endif %}
+                            <br>
+                            {% if clinic_booking.calendar_invite_sent_at %}
+                                <strong>Sent:</strong> {{ clinic_booking.calendar_invite_sent_at|date:"M d, Y H:i:s" }}<br>
+                            {% endif %}
+                            {% if clinic_booking.calendar_invite_error %}
+                                <div class="alert alert-danger mt-3">
+                                    <strong>Error:</strong> {{ clinic_booking.calendar_invite_error }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar with Actions -->
+                <div class="col-md-4">
+                    <!-- Salesforce Integration -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Salesforce Integration</h5>
+                        </div>
+                        <div class="card-body">
+                            <strong>Status:</strong> 
+                            {% if clinic_booking.salesforce_status == "Synced" %}
+                                <span class="badge bg-success">✓ Synced</span>
+                            {% elif clinic_booking.salesforce_status == "Failed" %}
+                                <span class="badge bg-danger">✗ Failed</span>
+                            {% elif clinic_booking.salesforce_status == "Pending" %}
+                                <span class="badge bg-warning">⏳ Pending</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Not scheduled</span>
+                            {% endif %}
+                            <br><br>
+
+                            {% if clinic_booking.salesforce_synced_at %}
+                                <strong>Synced:</strong> {{ clinic_booking.salesforce_synced_at|date:"M d, Y H:i:s" }}<br><br>
+                            {% endif %}
+
+                            {% if clinic_booking.salesforce_contact_id %}
+                                <strong>Contact ID:</strong> {{ clinic_booking.salesforce_contact_id }}<br>
+                                {% if clinic_booking.salesforce_contact_url %}
+                                    <a href="{{ clinic_booking.salesforce_contact_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-external-link-alt"></i> View in Salesforce
+                                    </a><br><br>
+                                {% endif %}
+                            {% endif %}
+
+                            {% if clinic_booking.salesforce_account_id %}
+                                <strong>Account ID:</strong> {{ clinic_booking.salesforce_account_id }}<br>
+                            {% endif %}
+
+                            {% if clinic_booking.salesforce_task_id %}
+                                <strong>Task ID:</strong> {{ clinic_booking.salesforce_task_id }}<br><br>
+                            {% endif %}
+
+                            {% if clinic_booking.salesforce_status != "Synced" %}
+                                <button onclick="syncSalesforce({{ clinic_booking.id }})" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-sync"></i> Sync to Salesforce
+                                </button>
+                            {% endif %}
+
+                            {% if clinic_booking.salesforce_sync_error %}
+                                <div class="alert alert-danger mt-3">
+                                    <strong>Error:</strong> {{ clinic_booking.salesforce_sync_error }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function syncSalesforce(bookingId) {
+    if (!confirm('Are you sure you want to sync this clinic booking to Salesforce?')) {
+        return;
+    }
+    
+    fetch(`/clinic-bookings/${bookingId}/sync-salesforce/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Successfully synced to Salesforce');
+            location.reload();
+        } else {
+            alert('Failed to sync to Salesforce: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while syncing to Salesforce');
+    });
+}
+</script>
+
+{% endblock %}

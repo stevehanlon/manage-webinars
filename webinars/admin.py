@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, OnDemandAttendee, WebhookLog, Download
+from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, OnDemandAttendee, WebhookLog, Download, ClinicBooking
 
 
 class WebinarDateInline(admin.TabularInline):
@@ -388,3 +388,82 @@ class DownloadAdmin(admin.ModelAdmin):
         return "-"
     
     formatted_payload_display.short_description = 'Webhook Payload'
+
+
+@admin.register(ClinicBooking)
+class ClinicBookingAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'email', 'clinic_date', 'organization', 'zoom_status_display', 'calendar_status_display', 'salesforce_status_display', 'created_at', 'is_deleted']
+    list_filter = ['clinic_date', 'zoom_created_at', 'calendar_invite_sent_at', 'salesforce_sync_pending', 'salesforce_synced_at', 'created_at']
+    search_fields = ['first_name', 'last_name', 'email', 'organization', 'website', 'question']
+    readonly_fields = ['created_at', 'updated_at', 'zoom_created_at', 'calendar_invite_sent_at', 'salesforce_synced_at']
+    fieldsets = (
+        (None, {
+            'fields': ('first_name', 'last_name', 'email', 'organization', 'clinic_date', 'website', 'question')
+        }),
+        ('Zoom Meeting', {
+            'fields': ('zoom_meeting_id', 'zoom_join_url', 'zoom_created_at', 'zoom_creation_error'),
+            'classes': ('collapse',)
+        }),
+        ('Calendar Invite', {
+            'fields': ('calendar_invite_sent_at', 'calendar_invite_success', 'calendar_invite_error'),
+            'classes': ('collapse',)
+        }),
+        ('Salesforce Integration', {
+            'fields': ('salesforce_contact_id', 'salesforce_account_id', 'salesforce_task_id', 
+                      'salesforce_synced_at', 'salesforce_sync_pending', 'salesforce_sync_error'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def full_name(self, obj):
+        return obj.full_name
+    
+    full_name.short_description = 'Name'
+    
+    def is_deleted(self, obj):
+        return obj.is_deleted
+    
+    is_deleted.boolean = True
+    is_deleted.short_description = 'Deleted'
+    
+    def zoom_status_display(self, obj):
+        status = obj.zoom_status
+        if status == "Created":
+            return format_html('<span style="color: green;">✓ {}</span>', status)
+        elif status == "Failed":
+            return format_html('<span style="color: red;">✗ {}</span>', status)
+        else:
+            return format_html('<span style="color: gray;">{}</span>', status)
+    
+    zoom_status_display.short_description = 'Zoom Status'
+    zoom_status_display.admin_order_field = 'zoom_meeting_id'
+    
+    def calendar_status_display(self, obj):
+        status = obj.calendar_invite_status
+        if status == "Sent":
+            return format_html('<span style="color: green;">✓ {}</span>', status)
+        elif status == "Failed":
+            return format_html('<span style="color: red;">✗ {}</span>', status)
+        else:
+            return format_html('<span style="color: gray;">{}</span>', status)
+    
+    calendar_status_display.short_description = 'Calendar Status'
+    calendar_status_display.admin_order_field = 'calendar_invite_sent_at'
+    
+    def salesforce_status_display(self, obj):
+        status = obj.salesforce_status
+        if status == "Synced":
+            return format_html('<span style="color: green;">✓ {}</span>', status)
+        elif status == "Failed":
+            return format_html('<span style="color: red;">✗ {}</span>', status)
+        elif status == "Pending":
+            return format_html('<span style="color: orange;">⏳ {}</span>', status)
+        else:
+            return format_html('<span style="color: gray;">{}</span>', status)
+    
+    salesforce_status_display.short_description = 'Salesforce Status'
+    salesforce_status_display.admin_order_field = 'salesforce_synced_at'

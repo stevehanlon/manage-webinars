@@ -329,6 +329,73 @@ class SalesforceService:
             
             return False, error_msg
     
+    def sync_clinic_booking(self, clinic_booking) -> Tuple[bool, str]:
+        """Sync a clinic booking to Salesforce (Account, Contact, Task)."""
+        try:
+            # Step 1: Handle Account (Organization)
+            account_id = None
+            if clinic_booking.organization:
+                # Try to find existing account
+                account_id = self.find_account_by_name(clinic_booking.organization)
+                
+                if not account_id:
+                    # Create new account
+                    success, account_id, message = self.create_account(clinic_booking.organization)
+                    if not success:
+                        return False, f"Failed to create account: {message}"
+            
+            # Step 2: Handle Contact
+            contact_id = self.find_contact_by_email(clinic_booking.email)
+            
+            if not contact_id:
+                # Create new contact
+                success, contact_id, message = self.create_contact(
+                    clinic_booking.first_name, 
+                    clinic_booking.last_name, 
+                    clinic_booking.email, 
+                    account_id
+                )
+                if not success:
+                    return False, f"Failed to create contact: {message}"
+            
+            # Step 3: Create Task for clinic booking
+            task_subject = "Clinic booking"
+            task_description = f"Clinic booking for {clinic_booking.full_name}\n"
+            task_description += f"Email: {clinic_booking.email}\n"
+            task_description += f"Clinic Date: {clinic_booking.clinic_date.strftime('%B %d, %Y at %I:%M %p %Z')}\n"
+            if clinic_booking.organization:
+                task_description += f"Organization: {clinic_booking.organization}\n"
+            if clinic_booking.website:
+                task_description += f"Website: {clinic_booking.website}\n"
+            task_description += f"Question: {clinic_booking.question}"
+            
+            success, task_id, message = self.create_task(contact_id, task_subject, task_description)
+            if not success:
+                return False, f"Failed to create task: {message}"
+            
+            # Step 4: Update clinic booking with Salesforce IDs
+            clinic_booking.salesforce_contact_id = contact_id
+            clinic_booking.salesforce_account_id = account_id or ""  # Handle None case
+            clinic_booking.salesforce_task_id = task_id
+            clinic_booking.salesforce_synced_at = django_timezone.now()
+            clinic_booking.salesforce_sync_pending = False
+            clinic_booking.salesforce_sync_error = ""
+            clinic_booking.save()
+            
+            logger.info(f"Successfully synced clinic booking {clinic_booking.email} to Salesforce")
+            return True, f"Successfully synced to Salesforce"
+            
+        except Exception as e:
+            error_msg = f"Error syncing clinic booking to Salesforce: {str(e)}"
+            logger.error(error_msg)
+            
+            # Update clinic booking with error
+            clinic_booking.salesforce_sync_error = error_msg
+            clinic_booking.salesforce_sync_pending = True  # Keep pending for retry
+            clinic_booking.save()
+            
+            return False, error_msg
+    
     def _get_webinar_name(self, attendee):
         """Get webinar name based on attendee type."""
         if hasattr(attendee, 'webinar_date') and attendee.webinar_date:

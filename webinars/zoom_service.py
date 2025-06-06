@@ -187,6 +187,73 @@ class ZoomService:
                 'error': str(e)
             }
     
+    def create_meeting(self, topic, start_time, duration=30, agenda="", attendee_email=None, attendee_name=None):
+        """
+        Create a Zoom meeting for clinic sessions.
+        
+        Args:
+            topic: Meeting title/topic
+            start_time: datetime object for meeting start
+            duration: Meeting duration in minutes (default 30)
+            agenda: Meeting agenda/description
+            attendee_email: Email of the primary attendee
+            attendee_name: Name of the primary attendee
+            
+        Returns:
+            dict: Meeting data including meeting_id, join_url, etc.
+        """
+        # Prepare meeting data
+        meeting_data = {
+            "topic": topic,
+            "type": 2,  # Scheduled meeting
+            "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "duration": duration,
+            "timezone": "Europe/London",
+            "agenda": agenda,
+            "settings": {
+                "host_video": True,
+                "participant_video": True,
+                "cn_meeting": False,
+                "in_meeting": False,
+                "join_before_host": False,
+                "mute_upon_entry": True,
+                "watermark": False,
+                "use_pmi": False,
+                "approval_type": 0,  # Automatically approve
+                "audio": "both",
+                "auto_recording": "none",
+                "enforce_login": False,
+                "waiting_room": True,
+                "allow_multiple_devices": True
+            }
+        }
+        
+        try:
+            # Use 'me' to get the current authenticated user
+            user_response = self._make_api_request('GET', '/users/me')
+            user_id = user_response['id']
+            
+            # Create the meeting
+            endpoint = f"/users/{user_id}/meetings"
+            meeting_response = self._make_api_request('POST', endpoint, meeting_data)
+            
+            return {
+                'success': True,
+                'meeting_id': str(meeting_response['id']),
+                'join_url': meeting_response['join_url'],
+                'start_url': meeting_response['start_url'],
+                'password': meeting_response.get('password', ''),
+                'zoom_response': meeting_response
+            }
+            
+        except ZoomAPIError as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'meeting_id': None,
+                'join_url': None
+            }
+    
     def test_connection(self):
         """Test the Zoom API connection and return account info."""
         try:

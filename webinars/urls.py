@@ -49,6 +49,7 @@ urlpatterns = [
     # API Webhooks
     path('api/attendee-webhook/', views.attendee_webhook, name='attendee_webhook'),
     path('api/download-webhook/', views.download_webhook, name='download_webhook'),
+    path('api/clinic-booking-webhook/', views.clinic_booking_webhook, name='clinic_booking_webhook'),
     
     # Activation URLs
     path('activate/attendee/<int:attendee_id>/', views.activate_attendee_view, name='activate_attendee'),
@@ -75,6 +76,11 @@ urlpatterns = [
     path('downloads/', views.download_list, name='download_list'),
     path('downloads/<int:pk>/', views.download_detail, name='download_detail'),
     path('downloads/<int:download_id>/sync-salesforce/', views.sync_download_salesforce, name='sync_download_salesforce'),
+    
+    # Clinic Booking URLs
+    path('clinic-bookings/', views.clinic_booking_list, name='clinic_booking_list'),
+    path('clinic-bookings/<int:pk>/', views.clinic_booking_detail, name='clinic_booking_detail'),
+    path('clinic-bookings/<int:clinic_booking_id>/sync-salesforce/', views.sync_clinic_booking_salesforce, name='sync_clinic_booking_salesforce'),
     
     # REST API
     path('', include(router.urls)),

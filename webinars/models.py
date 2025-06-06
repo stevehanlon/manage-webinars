@@ -466,6 +466,101 @@ class OnDemandAttendee(BaseModel):
         return None
 
 
+class ClinicBooking(BaseModel):
+    """Model to track clinic booking requests from website forms."""
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    organization = models.CharField(max_length=255, blank=True, help_text="Organization name")
+    clinic_date = models.DateTimeField(help_text="Date and time of the clinic session")
+    website = models.CharField(max_length=255, blank=True, help_text="Website address")
+    question = models.TextField(help_text="Question to be covered in the clinic session")
+    
+    # Zoom meeting fields
+    zoom_meeting_id = models.CharField(max_length=100, blank=True, help_text="Zoom meeting ID")
+    zoom_join_url = models.URLField(max_length=500, blank=True, help_text="Zoom meeting join URL")
+    zoom_created_at = models.DateTimeField(null=True, blank=True, help_text="When Zoom meeting was created")
+    zoom_creation_error = models.TextField(blank=True, help_text="Error message if Zoom meeting creation failed")
+    
+    # Calendar invite fields
+    calendar_invite_sent_at = models.DateTimeField(null=True, blank=True, help_text="When calendar invites were sent")
+    calendar_invite_success = models.BooleanField(null=True, blank=True, help_text="Whether calendar invite sending was successful")
+    calendar_invite_error = models.TextField(blank=True, help_text="Error message if calendar invite failed")
+    
+    # Salesforce integration fields
+    salesforce_contact_id = models.CharField(max_length=50, blank=True, help_text="Salesforce Contact ID")
+    salesforce_account_id = models.CharField(max_length=50, blank=True, help_text="Salesforce Account ID")
+    salesforce_task_id = models.CharField(max_length=50, blank=True, help_text="Salesforce Task ID")
+    salesforce_sync_error = models.TextField(blank=True, help_text="Error message if Salesforce sync failed")
+    salesforce_synced_at = models.DateTimeField(null=True, blank=True, help_text="When successfully synced to Salesforce")
+    salesforce_sync_pending = models.BooleanField(default=True, help_text="Whether this needs to be synced to Salesforce")
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['email', 'clinic_date']
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.clinic_date.strftime('%Y-%m-%d %H:%M')}"
+    
+    def get_absolute_url(self):
+        return reverse('clinic_booking_detail', args=[self.id])
+    
+    @property
+    def full_name(self):
+        """Return full name."""
+        return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def zoom_meeting_subject(self):
+        """Return the Zoom meeting subject."""
+        return f"Awesome Tech Training Clinic - {self.full_name}"
+    
+    @property
+    def zoom_status(self):
+        """Return a human-readable Zoom meeting status."""
+        if self.zoom_meeting_id:
+            return "Created"
+        elif self.zoom_creation_error:
+            return "Failed"
+        else:
+            return "Not created"
+    
+    @property
+    def calendar_invite_status(self):
+        """Return a human-readable calendar invite status."""
+        if not self.calendar_invite_sent_at:
+            return "Not sent"
+        elif self.calendar_invite_success:
+            return "Sent"
+        else:
+            return "Failed"
+    
+    @property
+    def salesforce_status(self):
+        """Return a human-readable Salesforce sync status."""
+        if self.salesforce_synced_at:
+            return "Synced"
+        elif self.salesforce_sync_error:
+            return "Failed"
+        elif self.salesforce_sync_pending:
+            return "Pending"
+        else:
+            return "Not scheduled"
+    
+    @property
+    def salesforce_contact_url(self):
+        """Return the Salesforce contact URL if synced."""
+        if self.salesforce_contact_id:
+            from settings.models import SalesforceSettings
+            try:
+                sf_settings = SalesforceSettings.objects.first()
+                if sf_settings and sf_settings.subdomain:
+                    return f"https://{sf_settings.subdomain}.my.salesforce.com/{self.salesforce_contact_id}"
+            except:
+                pass
+        return None
+
+
 class WebhookLog(models.Model):
     """Model to store webhook request logs for debugging."""
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
