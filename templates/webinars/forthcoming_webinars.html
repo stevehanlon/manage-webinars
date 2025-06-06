@@ -17,8 +17,17 @@
 
 <div class="row mb-4">
     <div class="col-12">
-        <h1>Forthcoming Webinars</h1>
-        <p class="text-muted">All scheduled webinars and bundles starting from {{ current_time|date:"F d, Y" }}</p>
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>Forthcoming Webinars</h1>
+                <p class="text-muted">All scheduled webinars and bundles starting from {{ current_time|date:"F d, Y" }}</p>
+            </div>
+            <div>
+                <a href="{% url 'webinar_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add New Webinar
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
