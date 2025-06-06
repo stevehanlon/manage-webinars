@@ -1,8 +1,10 @@
 {% extends 'base/base.html' %}
+{% load static %}
 
 {% block title %}Downloads{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
@@ -155,12 +157,18 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.className = 'fas fa-spinner fa-spin';
             this.disabled = true;
             
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            
+            if (csrfToken) {
+                headers['X-CSRFToken'] = csrfToken.value;
+            }
+            
             fetch(url, {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                    'Content-Type': 'application/json',
-                },
+                headers: headers,
             })
             .then(response => response.json())
             .then(data => {
