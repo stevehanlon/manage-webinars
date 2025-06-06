@@ -70,6 +70,7 @@ class WebinarDateViewSet(viewsets.ModelViewSet):
                 'first_name': attendee.first_name,
                 'last_name': attendee.last_name,
                 'email': attendee.email,
+                'organization': attendee.organization,
                 'created_at': attendee.created_at,
                 'updated_at': attendee.updated_at
             })
