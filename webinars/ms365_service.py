@@ -96,9 +96,6 @@ class MS365CalendarService:
         
         <h3>Zoom Meeting Details</h3>
         <p>Zoom meeting will be created when available.</p>
-        
-        <h3>Attendees</h3>
-        <p>View attendees in the <a href="{webinar_date.get_absolute_url()}">webinar management system</a></p>
         """
         
         # Prepare request body
@@ -199,12 +196,6 @@ class MS365CalendarService:
         <p><strong>Bundle:</strong> {bundle.name}</p>
         <p><strong>Date:</strong> {date.strftime('%B %d, %Y')}</p>
         <p><strong>Status:</strong> {'Auto-created from Kajabi webhook' if was_auto_created else 'Manually created'}</p>
-        
-        <h3>Included Webinars</h3>
-        <p>View webinar dates in the <a href="{bundle_date.get_absolute_url()}">bundle management system</a></p>
-        
-        <h3>Attendees</h3>
-        <p>View attendees in the <a href="{bundle_date.get_absolute_url()}">bundle management system</a></p>
         """
         
         # Prepare request body
@@ -344,9 +335,6 @@ class MS365CalendarService:
         
         <h3>Zoom Meeting Details</h3>
         <p>Zoom meeting will be created when available.</p>
-        
-        <h3>Attendees</h3>
-        <p>View attendees in the <a href="{webinar_date.get_absolute_url()}">webinar management system</a></p>
         """
         
         # Prepare request body
@@ -474,11 +462,7 @@ class MS365CalendarService:
             else:
                 description += "<p>Zoom meeting details will be added when available.</p>"
             
-            description += f"""
-            
-            <h3>Management</h3>
-            <p><a href="{clinic_booking.get_absolute_url()}">View clinic booking details</a></p>
-            """
+            description += ""
             
             # Prepare request body
             body = {
