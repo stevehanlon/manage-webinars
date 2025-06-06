@@ -519,11 +519,26 @@ def download_webhook(request):
                 data = request.POST.dict()
                 logger.info(f"Parsed as form data: {data}")
             
-            # Extract required fields
-            first_name = data.get('first_name', '')
-            last_name = data.get('last_name', '')  # Optional
-            email = data.get('email', '')
-            form_title = data.get('form_title', '')
+            # Check if this is a Kajabi webhook with nested payload
+            if 'event' in data and 'payload' in data:
+                # Kajabi webhook format
+                payload = data.get('payload', {})
+                first_name = payload.get('First Name', '')
+                last_name = payload.get('Surname', '') or payload.get('Last Name', '')  # Optional
+                email = payload.get('Email', '')
+                form_title = payload.get('form_title', '')
+                organization = (payload.get('custom_field_organisation') or 
+                              payload.get('Organisation') or 
+                              payload.get('Organization') or 
+                              payload.get('organisation') or 
+                              payload.get('organization') or '')
+            else:
+                # Direct API call format
+                first_name = data.get('first_name', '')
+                last_name = data.get('last_name', '')  # Optional
+                email = data.get('email', '')
+                form_title = data.get('form_title', '')
+                organization = data.get('organization', '')
             
             # Validate required fields
             if not all([first_name, email, form_title]):
@@ -556,7 +571,7 @@ def download_webhook(request):
                 email=email,
                 form_title=form_title,
                 payload=data,
-                organization=data.get('organization', ''),  # Optional organization field
+                organization=organization,  # Organization extracted above
                 salesforce_sync_pending=True  # Mark for Salesforce sync
             )
             
