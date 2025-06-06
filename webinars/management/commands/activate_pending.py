@@ -37,8 +37,46 @@ class Command(BaseCommand):
         start_time = timezone.now()
         
         try:
-            # Call the activation service
-            success_count, failure_count, activation_messages = activate_pending_attendees()
+            if dry_run:
+                # In dry-run mode, find attendees but don't activate
+                from webinars.models import Attendee, BundleAttendee
+                
+                # Count regular attendees who need activation
+                regular_attendees = Attendee.objects.filter(
+                    deleted_at=None,
+                    activation_sent_at=None
+                ).select_related('webinar_date', 'webinar_date__webinar')
+                
+                # Count bundle attendees who need activation  
+                bundle_attendees = BundleAttendee.objects.filter(
+                    deleted_at=None,
+                    activation_sent_at=None
+                ).select_related('bundle_date', 'bundle_date__bundle')
+                
+                activation_messages = []
+                pending_count = 0
+                
+                for attendee in regular_attendees:
+                    if attendee.needs_activation:
+                        pending_count += 1
+                        webinar_name = attendee.webinar_date.webinar.name
+                        activation_messages.append(
+                            f"[DRY RUN] Would activate {attendee.email} for {webinar_name}"
+                        )
+                        
+                for attendee in bundle_attendees:
+                    if attendee.needs_activation:
+                        pending_count += 1
+                        bundle_name = attendee.bundle_date.bundle.name
+                        activation_messages.append(
+                            f"[DRY RUN] Would activate {attendee.email} for {bundle_name}"
+                        )
+                
+                success_count = pending_count
+                failure_count = 0
+            else:
+                # Call the activation service
+                success_count, failure_count, activation_messages = activate_pending_attendees()
             
             # Apply limit if specified (by only processing first N messages)
             if limit and len(activation_messages) > limit:
