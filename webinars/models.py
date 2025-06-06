@@ -507,3 +507,62 @@ class WebhookLog(models.Model):
             except:
                 return self.body
         return ''
+
+
+class Download(BaseModel):
+    """Model to track download form submissions from Kajabi."""
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100, blank=True)
+    email = models.EmailField()
+    form_title = models.CharField(max_length=255, help_text="Title of the download form")
+    payload = models.JSONField(help_text="Full webhook payload")
+    
+    # Salesforce integration fields (same as attendees)
+    organization = models.CharField(max_length=255, blank=True, help_text="Organization name")
+    salesforce_contact_id = models.CharField(max_length=50, blank=True, help_text="Salesforce Contact ID")
+    salesforce_account_id = models.CharField(max_length=50, blank=True, help_text="Salesforce Account ID")
+    salesforce_task_id = models.CharField(max_length=50, blank=True, help_text="Salesforce Task ID")
+    salesforce_sync_error = models.TextField(blank=True, help_text="Error message if Salesforce sync failed")
+    salesforce_synced_at = models.DateTimeField(null=True, blank=True, help_text="When successfully synced to Salesforce")
+    salesforce_sync_pending = models.BooleanField(default=True, help_text="Whether this needs to be synced to Salesforce")
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.form_title}"
+    
+    def get_absolute_url(self):
+        return reverse('download_detail', args=[self.id])
+    
+    @property
+    def full_name(self):
+        """Return full name."""
+        if self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        return self.first_name
+    
+    @property
+    def salesforce_status(self):
+        """Return a human-readable Salesforce sync status."""
+        if self.salesforce_synced_at:
+            return "Synced"
+        elif self.salesforce_sync_error:
+            return "Failed"
+        elif self.salesforce_sync_pending:
+            return "Pending"
+        else:
+            return "Not scheduled"
+    
+    @property
+    def salesforce_contact_url(self):
+        """Return the Salesforce contact URL if synced."""
+        if self.salesforce_contact_id:
+            from settings.models import SalesforceSettings
+            try:
+                sf_settings = SalesforceSettings.objects.first()
+                if sf_settings and sf_settings.subdomain:
+                    return f"https://{sf_settings.subdomain}.my.salesforce.com/{self.salesforce_contact_id}"
+            except:
+                pass
+        return None

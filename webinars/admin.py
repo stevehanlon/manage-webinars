@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, OnDemandAttendee, WebhookLog
+from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, OnDemandAttendee, WebhookLog, Download
 
 
 class WebinarDateInline(admin.TabularInline):
@@ -325,3 +325,66 @@ class OnDemandAttendeeAdmin(admin.ModelAdmin):
             return format_html('<span style="color: orange;">⏳ {}</span>', status)
     
     activation_status_display.short_description = 'Activation Status'
+
+
+@admin.register(Download)
+class DownloadAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'email', 'form_title', 'organization', 'salesforce_status_display', 'created_at', 'is_deleted']
+    list_filter = ['form_title', 'salesforce_sync_pending', 'salesforce_synced_at', 'created_at']
+    search_fields = ['first_name', 'last_name', 'email', 'form_title', 'organization']
+    readonly_fields = ['created_at', 'updated_at', 'formatted_payload_display']
+    fieldsets = (
+        (None, {
+            'fields': ('first_name', 'last_name', 'email', 'form_title', 'organization')
+        }),
+        ('Salesforce Integration', {
+            'fields': ('salesforce_contact_id', 'salesforce_account_id', 'salesforce_task_id', 
+                      'salesforce_synced_at', 'salesforce_sync_pending', 'salesforce_sync_error'),
+            'classes': ('collapse',)
+        }),
+        ('Webhook Data', {
+            'fields': ('formatted_payload_display',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def full_name(self, obj):
+        return obj.full_name
+    
+    full_name.short_description = 'Name'
+    
+    def is_deleted(self, obj):
+        return obj.is_deleted
+    
+    is_deleted.boolean = True
+    is_deleted.short_description = 'Deleted'
+    
+    def salesforce_status_display(self, obj):
+        status = obj.salesforce_status
+        if status == "Synced":
+            return format_html('<span style="color: green;">✓ {}</span>', status)
+        elif status == "Failed":
+            return format_html('<span style="color: red;">✗ {}</span>', status)
+        elif status == "Pending":
+            return format_html('<span style="color: orange;">⏳ {}</span>', status)
+        else:
+            return format_html('<span style="color: gray;">{}</span>', status)
+    
+    salesforce_status_display.short_description = 'Salesforce Status'
+    salesforce_status_display.admin_order_field = 'salesforce_synced_at'
+    
+    def formatted_payload_display(self, obj):
+        if obj.payload:
+            try:
+                import json
+                formatted = json.dumps(obj.payload, indent=2)
+            except:
+                formatted = str(obj.payload)
+            return format_html('<pre style="white-space: pre-wrap; word-wrap: break-word;">{}</pre>', formatted)
+        return "-"
+    
+    formatted_payload_display.short_description = 'Webhook Payload'

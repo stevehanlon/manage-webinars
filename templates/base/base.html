@@ -39,6 +39,12 @@
                         <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">Dashboard</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'forthcoming_webinars' %}active{% endif %}" href="{% url 'forthcoming_webinars' %}">Webinars</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'download_list' %}active{% endif %}" href="{% url 'download_list' %}">Downloads</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'settings_dashboard' %}">Settings</a>
                     </li>
                     {% endif %}

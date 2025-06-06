@@ -48,6 +48,7 @@ urlpatterns = [
     
     # API Webhooks
     path('api/attendee-webhook/', views.attendee_webhook, name='attendee_webhook'),
+    path('api/download-webhook/', views.download_webhook, name='download_webhook'),
     
     # Activation URLs
     path('activate/attendee/<int:attendee_id>/', views.activate_attendee_view, name='activate_attendee'),
@@ -69,6 +70,11 @@ urlpatterns = [
     
     # Salesforce Sync URLs
     path('attendees/<int:attendee_id>/sync-salesforce/', views.sync_attendee_salesforce, name='sync_attendee_salesforce'),
+    
+    # Download URLs
+    path('downloads/', views.download_list, name='download_list'),
+    path('downloads/<int:pk>/', views.download_detail, name='download_detail'),
+    path('downloads/<int:download_id>/sync-salesforce/', views.sync_download_salesforce, name='sync_download_salesforce'),
     
     # REST API
     path('', include(router.urls)),

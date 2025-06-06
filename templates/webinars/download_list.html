@@ -1,0 +1,188 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Downloads{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Downloads</h1>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="form_title" class="form-label">Form Title</label>
+                            <input type="text" class="form-control" id="form_title" name="form_title" 
+                                   value="{{ form_title_filter|default:'' }}" placeholder="Filter by form title">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="sync_status" class="form-label">Salesforce Status</label>
+                            <select class="form-select" id="sync_status" name="sync_status">
+                                <option value="">All</option>
+                                <option value="synced" {% if sync_status_filter == 'synced' %}selected{% endif %}>Synced</option>
+                                <option value="pending" {% if sync_status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="failed" {% if sync_status_filter == 'failed' %}selected{% endif %}>Failed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary d-block">Filter</button>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <a href="{% url 'download_list' %}" class="btn btn-secondary d-block">Clear</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Downloads Table -->
+            <div class="card">
+                <div class="card-body">
+                    {% if page_obj %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Form Title</th>
+                                        <th>Organization</th>
+                                        <th>Salesforce Status</th>
+                                        <th>Downloaded</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for download in page_obj %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'download_detail' download.pk %}" class="text-decoration-none">
+                                                    {{ download.full_name }}
+                                                </a>
+                                            </td>
+                                            <td>{{ download.email }}</td>
+                                            <td>{{ download.form_title }}</td>
+                                            <td>{{ download.organization|default:"—" }}</td>
+                                            <td>
+                                                {% if download.salesforce_status == 'Synced' %}
+                                                    <span class="badge bg-success">{{ download.salesforce_status }}</span>
+                                                    {% if download.salesforce_contact_url %}
+                                                        <a href="{{ download.salesforce_contact_url }}" target="_blank" class="text-decoration-none ms-1">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                        </a>
+                                                    {% endif %}
+                                                {% elif download.salesforce_status == 'Failed' %}
+                                                    <span class="badge bg-danger">{{ download.salesforce_status }}</span>
+                                                {% elif download.salesforce_status == 'Pending' %}
+                                                    <span class="badge bg-warning">{{ download.salesforce_status }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ download.salesforce_status }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ download.created_at|date:"M d, Y H:i" }}</td>
+                                            <td>
+                                                {% if download.salesforce_sync_pending %}
+                                                    <button class="btn btn-sm btn-outline-primary sync-btn" 
+                                                            data-url="{% url 'sync_download_salesforce' download.id %}"
+                                                            title="Sync to Salesforce">
+                                                        <i class="fas fa-sync"></i>
+                                                    </button>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        {% if page_obj.has_other_pages %}
+                            <nav aria-label="Downloads pagination">
+                                <ul class="pagination justify-content-center">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=1{% if form_title_filter %}&form_title={{ form_title_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}">First</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if form_title_filter %}&form_title={{ form_title_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}">Previous</a>
+                                        </li>
+                                    {% endif %}
+
+                                    <li class="page-item active">
+                                        <span class="page-link">
+                                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                        </span>
+                                    </li>
+
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if form_title_filter %}&form_title={{ form_title_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}">Next</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if form_title_filter %}&form_title={{ form_title_filter }}{% endif %}{% if sync_status_filter %}&sync_status={{ sync_status_filter }}{% endif %}">Last</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+
+                    {% else %}
+                        <div class="text-center text-muted">
+                            <p>No downloads found.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle sync buttons
+    document.querySelectorAll('.sync-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const url = this.getAttribute('data-url');
+            const icon = this.querySelector('i');
+            const originalClass = icon.className;
+            
+            // Show loading state
+            icon.className = 'fas fa-spinner fa-spin';
+            this.disabled = true;
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload page to show updated status
+                    location.reload();
+                } else {
+                    alert('Sync failed: ' + data.message);
+                    // Reset button state
+                    icon.className = originalClass;
+                    this.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Sync failed: ' + error.message);
+                // Reset button state
+                icon.className = originalClass;
+                this.disabled = false;
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

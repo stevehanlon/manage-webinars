@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
 
-from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee
+from .models import Webinar, WebinarDate, Attendee, WebinarBundle, BundleDate, BundleAttendee, Download
 from .forms import WebinarForm, WebinarDateForm, AttendeeForm, WebinarBundleForm, BundleDateForm, BundleAttendeeForm
 
 
@@ -439,6 +439,158 @@ def attendee_webhook(request):
                 )
             except Exception as email_error:
                 logger.error(f"Failed to send error email: {str(email_error)}")
+            
+            response_data = {
+                'status': 'error',
+                'message': str(e)
+            }
+            response = JsonResponse(response_data, status=500)
+            
+            # Save to database
+            WebhookLog.objects.create(
+                method=request.method,
+                path=request.path,
+                headers=dict(request.headers),
+                body=body_unicode,
+                response_status=response.status_code,
+                response_body=json.dumps(response_data),
+                success=False,
+                error_message=error_message,
+                processing_time_ms=int((time.time() - start_time) * 1000)
+            )
+            
+            return response
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Method not allowed'
+    }, status=405)
+
+
+@csrf_exempt
+def download_webhook(request):
+    """Webhook endpoint for download form submissions."""
+    import logging
+    import time
+    from .models import WebhookLog
+    
+    logger = logging.getLogger('webinars')
+    start_time = time.time()
+    
+    # Log all inbound requests
+    logger.info(f"Download webhook request received - Method: {request.method}, Path: {request.path}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    
+    # Always return 200 OK for non-POST requests (GET, HEAD, OPTIONS)
+    if request.method != 'POST':
+        from django.http import HttpResponse
+        logger.info(f"Non-POST request ({request.method}) - returning 200 OK")
+        response = HttpResponse('OK', content_type='text/plain', status=200)
+        
+        # Save to database
+        WebhookLog.objects.create(
+            method=request.method,
+            path=request.path,
+            headers=dict(request.headers),
+            body='',
+            response_status=response.status_code,
+            response_body='OK',
+            success=True,
+            processing_time_ms=int((time.time() - start_time) * 1000)
+        )
+        
+        return response
+    
+    if request.method == 'POST':
+        # Log request body
+        body_unicode = request.body.decode('utf-8')
+        logger.info(f"POST body: {body_unicode}")
+        
+        try:
+            # Try to parse JSON data from the request body
+            try:
+                import json
+                if body_unicode:
+                    data = json.loads(body_unicode)
+                else:
+                    data = {}
+            except json.JSONDecodeError:
+                # Fall back to form data if not valid JSON
+                data = request.POST.dict()
+                logger.info(f"Parsed as form data: {data}")
+            
+            # Extract required fields
+            first_name = data.get('first_name', '')
+            last_name = data.get('last_name', '')  # Optional
+            email = data.get('email', '')
+            form_title = data.get('form_title', '')
+            
+            # Validate required fields
+            if not all([first_name, email, form_title]):
+                logger.warning(f"Download webhook missing required fields - first_name: '{first_name}', email: '{email}', form_title: '{form_title}'")
+                response_data = {
+                    'status': 'error',
+                    'message': 'Missing required fields: first_name, email, form_title'
+                }
+                response = JsonResponse(response_data, status=400)
+                
+                # Save to database
+                WebhookLog.objects.create(
+                    method=request.method,
+                    path=request.path,
+                    headers=dict(request.headers),
+                    body=body_unicode,
+                    response_status=response.status_code,
+                    response_body=json.dumps(response_data),
+                    success=False,
+                    error_message='Missing required fields',
+                    processing_time_ms=int((time.time() - start_time) * 1000)
+                )
+                
+                return response
+            
+            # Create the download record
+            download = Download.objects.create(
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                form_title=form_title,
+                payload=data,
+                organization=data.get('organization', ''),  # Optional organization field
+                salesforce_sync_pending=True  # Mark for Salesforce sync
+            )
+            
+            logger.info(f"Created download record {download.id} for {email} - {form_title}")
+            
+            response_data = {
+                'status': 'success',
+                'message': f'Download recorded for {email}',
+                'download_id': download.id
+            }
+            response = JsonResponse(response_data)
+            
+            # Save to database
+            WebhookLog.objects.create(
+                method=request.method,
+                path=request.path,
+                headers=dict(request.headers),
+                body=body_unicode,
+                response_status=response.status_code,
+                response_body=json.dumps(response_data),
+                success=True,
+                error_message='',
+                processing_time_ms=int((time.time() - start_time) * 1000)
+            )
+            
+            return response
+            
+        except Exception as e:
+            import traceback
+            error_message = f"Unhandled exception: {str(e)}\n{traceback.format_exc()}"
+            
+            # Log the error
+            logger.error(f"Download webhook exception - {error_message}")
+            logger.error(f"Request data that caused error: {data}")
             
             response_data = {
                 'status': 'error',
@@ -1243,5 +1395,76 @@ def forthcoming_webinars(request):
         'events': events,
         'current_time': current_time
     })
+
+
+# Download Views
+@login_required
+def download_list(request):
+    """Display all downloads with pagination."""
+    from django.core.paginator import Paginator
+    
+    downloads = Download.objects.filter(deleted_at=None).order_by('-created_at')
+    
+    # Filter by form title if requested
+    form_title_filter = request.GET.get('form_title')
+    if form_title_filter:
+        downloads = downloads.filter(form_title__icontains=form_title_filter)
+    
+    # Filter by Salesforce sync status if requested
+    sync_status_filter = request.GET.get('sync_status')
+    if sync_status_filter == 'synced':
+        downloads = downloads.exclude(salesforce_synced_at=None)
+    elif sync_status_filter == 'pending':
+        downloads = downloads.filter(salesforce_sync_pending=True, salesforce_synced_at=None)
+    elif sync_status_filter == 'failed':
+        downloads = downloads.exclude(salesforce_sync_error='')
+    
+    # Paginate results
+    paginator = Paginator(downloads, 50)  # Show 50 downloads per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, 'webinars/download_list.html', {
+        'page_obj': page_obj,
+        'form_title_filter': form_title_filter,
+        'sync_status_filter': sync_status_filter,
+    })
+
+
+@login_required
+def download_detail(request, pk):
+    """View details of a specific download."""
+    download = get_object_or_404(Download, pk=pk, deleted_at=None)
+    
+    return render(request, 'webinars/download_detail.html', {
+        'download': download,
+    })
+
+
+@login_required
+def sync_download_salesforce(request, download_id):
+    """Manually sync a download to Salesforce."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    download = get_object_or_404(Download, pk=download_id, deleted_at=None)
+    
+    try:
+        from .salesforce_service import SalesforceService
+        
+        sf_service = SalesforceService()
+        success, message = sf_service.sync_download(download)
+        
+        if success:
+            messages.success(request, f'Successfully synced {download.email} to Salesforce')
+            return JsonResponse({'success': True, 'message': message})
+        else:
+            messages.error(request, f'Failed to sync {download.email} to Salesforce: {message}')
+            return JsonResponse({'success': False, 'message': message}, status=400)
+            
+    except Exception as e:
+        error_msg = f"Error syncing to Salesforce: {str(e)}"
+        messages.error(request, error_msg)
+        return JsonResponse({'success': False, 'message': error_msg}, status=500)
 
 

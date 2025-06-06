@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from webinars.models import Attendee, OnDemandAttendee, BundleAttendee
+from webinars.models import Attendee, OnDemandAttendee, BundleAttendee, Download
 from webinars.salesforce_service import SalesforceService
 import logging
 
@@ -8,14 +8,14 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Sync pending attendees to Salesforce'
+    help = 'Sync pending attendees and downloads to Salesforce'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--limit',
             type=int,
             default=50,
-            help='Maximum number of attendees to process in this run'
+            help='Maximum number of attendees and downloads to process in this run'
         )
         parser.add_argument(
             '--dry-run',
@@ -33,8 +33,8 @@ class Command(BaseCommand):
         # Initialize Salesforce service
         sf_service = SalesforceService()
         
-        # Collect all pending attendees from different models
-        pending_attendees = []
+        # Collect all pending attendees and downloads from different models
+        pending_items = []
         
         # Get pending regular attendees
         regular_attendees = Attendee.objects.filter(
@@ -43,72 +43,92 @@ class Command(BaseCommand):
         ).select_related('webinar_date__webinar')[:limit]
         
         for attendee in regular_attendees:
-            pending_attendees.append(('Attendee', attendee))
+            pending_items.append(('Attendee', attendee))
         
         # Get pending on-demand attendees
-        if len(pending_attendees) < limit:
-            remaining = limit - len(pending_attendees)
+        if len(pending_items) < limit:
+            remaining = limit - len(pending_items)
             ondemand_attendees = OnDemandAttendee.objects.filter(
                 deleted_at=None,
                 salesforce_sync_pending=True
             ).select_related('webinar')[:remaining]
             
             for attendee in ondemand_attendees:
-                pending_attendees.append(('OnDemandAttendee', attendee))
+                pending_items.append(('OnDemandAttendee', attendee))
         
         # Get pending bundle attendees
-        if len(pending_attendees) < limit:
-            remaining = limit - len(pending_attendees)
+        if len(pending_items) < limit:
+            remaining = limit - len(pending_items)
             bundle_attendees = BundleAttendee.objects.filter(
                 deleted_at=None,
                 salesforce_sync_pending=True
             ).select_related('bundle_date__bundle')[:remaining]
             
             for attendee in bundle_attendees:
-                pending_attendees.append(('BundleAttendee', attendee))
+                pending_items.append(('BundleAttendee', attendee))
         
-        if not pending_attendees:
-            self.stdout.write(self.style.SUCCESS('No attendees pending Salesforce sync'))
+        # Get pending downloads
+        if len(pending_items) < limit:
+            remaining = limit - len(pending_items)
+            downloads = Download.objects.filter(
+                deleted_at=None,
+                salesforce_sync_pending=True
+            )[:remaining]
+            
+            for download in downloads:
+                pending_items.append(('Download', download))
+        
+        if not pending_items:
+            self.stdout.write(self.style.SUCCESS('No attendees or downloads pending Salesforce sync'))
             return
         
-        self.stdout.write(f'Found {len(pending_attendees)} attendees pending sync')
+        self.stdout.write(f'Found {len(pending_items)} items pending sync')
         
         success_count = 0
         error_count = 0
         
-        for attendee_type, attendee in pending_attendees:
+        for item_type, item in pending_items:
             try:
                 if dry_run:
-                    webinar_name = self._get_webinar_name(attendee)
-                    self.stdout.write(
-                        f'[DRY RUN] Would sync {attendee_type}: {attendee.first_name} {attendee.last_name} '
-                        f'({attendee.email}) - {webinar_name}'
-                    )
-                    if attendee.organization:
-                        self.stdout.write(f'  Organization: {attendee.organization}')
+                    if item_type == 'Download':
+                        self.stdout.write(
+                            f'[DRY RUN] Would sync {item_type}: {item.first_name} {item.last_name} '
+                            f'({item.email}) - {item.form_title}'
+                        )
+                    else:
+                        webinar_name = self._get_webinar_name(item)
+                        self.stdout.write(
+                            f'[DRY RUN] Would sync {item_type}: {item.first_name} {item.last_name} '
+                            f'({item.email}) - {webinar_name}'
+                        )
+                    if item.organization:
+                        self.stdout.write(f'  Organization: {item.organization}')
                     continue
                 
                 # Attempt to sync to Salesforce
-                success, message = sf_service.sync_attendee(attendee)
+                if item_type == 'Download':
+                    success, message = sf_service.sync_download(item)
+                else:
+                    success, message = sf_service.sync_attendee(item)
                 
                 if success:
                     success_count += 1
                     self.stdout.write(
                         self.style.SUCCESS(
-                            f'✓ Synced {attendee_type}: {attendee.first_name} {attendee.last_name} ({attendee.email})'
+                            f'✓ Synced {item_type}: {item.first_name} {item.last_name} ({item.email})'
                         )
                     )
                 else:
                     error_count += 1
-                    # Update attendee with error
-                    attendee.salesforce_sync_error = message
-                    attendee.salesforce_sync_pending = True  # Keep it pending for retry
-                    attendee.save()
+                    # Update item with error
+                    item.salesforce_sync_error = message
+                    item.salesforce_sync_pending = True  # Keep it pending for retry
+                    item.save()
                     
                     self.stdout.write(
                         self.style.ERROR(
-                            f'✗ Failed to sync {attendee_type}: {attendee.first_name} {attendee.last_name} '
-                            f'({attendee.email}) - {message}'
+                            f'✗ Failed to sync {item_type}: {item.first_name} {item.last_name} '
+                            f'({item.email}) - {message}'
                         )
                     )
                     
@@ -117,22 +137,22 @@ class Command(BaseCommand):
                 error_msg = f"Unexpected error: {str(e)}"
                 
                 if not dry_run:
-                    attendee.salesforce_sync_error = error_msg
-                    attendee.salesforce_sync_pending = True  # Keep it pending for retry
-                    attendee.save()
+                    item.salesforce_sync_error = error_msg
+                    item.salesforce_sync_pending = True  # Keep it pending for retry
+                    item.save()
                 
                 self.stdout.write(
                     self.style.ERROR(
-                        f'✗ Exception syncing {attendee_type}: {attendee.first_name} {attendee.last_name} '
-                        f'({attendee.email}) - {error_msg}'
+                        f'✗ Exception syncing {item_type}: {item.first_name} {item.last_name} '
+                        f'({item.email}) - {error_msg}'
                     )
                 )
-                logger.exception(f"Error syncing attendee {attendee.id} to Salesforce")
+                logger.exception(f"Error syncing {item_type} {item.id} to Salesforce")
         
         # Summary
         if dry_run:
             self.stdout.write(
-                self.style.SUCCESS(f'DRY RUN COMPLETE: Would process {len(pending_attendees)} attendees')
+                self.style.SUCCESS(f'DRY RUN COMPLETE: Would process {len(pending_items)} items')
             )
         else:
             self.stdout.write(
@@ -142,12 +162,12 @@ class Command(BaseCommand):
             )
             
             if success_count > 0:
-                self.stdout.write(f'Successfully synced {success_count} attendees to Salesforce')
+                self.stdout.write(f'Successfully synced {success_count} items to Salesforce')
             
             if error_count > 0:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'{error_count} attendees failed to sync. Check logs for details. '
+                        f'{error_count} items failed to sync. Check logs for details. '
                         'They will be retried on the next run.'
                     )
                 )

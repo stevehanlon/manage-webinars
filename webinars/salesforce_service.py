@@ -267,6 +267,68 @@ class SalesforceService:
             
             return False, error_msg
     
+    def sync_download(self, download) -> Tuple[bool, str]:
+        """Sync a download to Salesforce (Account, Contact, Task)."""
+        try:
+            # Step 1: Handle Account (Organization)
+            account_id = None
+            if download.organization:
+                # Try to find existing account
+                account_id = self.find_account_by_name(download.organization)
+                
+                if not account_id:
+                    # Create new account
+                    success, account_id, message = self.create_account(download.organization)
+                    if not success:
+                        return False, f"Failed to create account: {message}"
+            
+            # Step 2: Handle Contact
+            contact_id = self.find_contact_by_email(download.email)
+            
+            if not contact_id:
+                # Create new contact
+                success, contact_id, message = self.create_contact(
+                    download.first_name, 
+                    download.last_name, 
+                    download.email, 
+                    account_id
+                )
+                if not success:
+                    return False, f"Failed to create contact: {message}"
+            
+            # Step 3: Create Task for download
+            task_subject = f"Download: {download.form_title}"
+            task_description = f"Contact downloaded resource: {download.form_title}\nEmail: {download.email}"
+            if download.organization:
+                task_description += f"\nOrganization: {download.organization}"
+            
+            success, task_id, message = self.create_task(contact_id, task_subject, task_description)
+            if not success:
+                return False, f"Failed to create task: {message}"
+            
+            # Step 4: Update download with Salesforce IDs
+            download.salesforce_contact_id = contact_id
+            download.salesforce_account_id = account_id or ""  # Handle None case
+            download.salesforce_task_id = task_id
+            download.salesforce_synced_at = django_timezone.now()
+            download.salesforce_sync_pending = False
+            download.salesforce_sync_error = ""
+            download.save()
+            
+            logger.info(f"Successfully synced download {download.email} to Salesforce")
+            return True, f"Successfully synced to Salesforce"
+            
+        except Exception as e:
+            error_msg = f"Error syncing download to Salesforce: {str(e)}"
+            logger.error(error_msg)
+            
+            # Update download with error
+            download.salesforce_sync_error = error_msg
+            download.salesforce_sync_pending = True  # Keep pending for retry
+            download.save()
+            
+            return False, error_msg
+    
     def _get_webinar_name(self, attendee):
         """Get webinar name based on attendee type."""
         if hasattr(attendee, 'webinar_date') and attendee.webinar_date:
