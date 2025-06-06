@@ -288,7 +288,16 @@ def process_kajabi_webhook(data, request):
             first_name = payload.get('member_first_name', '')
             last_name = payload.get('member_last_name', '')
             email = payload.get('member_email', '')
-            organization = ''  # Purchase events don't typically have organization data
+            # Try multiple organization field variations for purchase events too
+            organization = (payload.get('custom_field_organisation') or 
+                          payload.get('Organisation') or 
+                          payload.get('Organization') or 
+                          payload.get('organisation') or 
+                          payload.get('organization') or '')
+            
+            # Debug logging for organization extraction
+            logger.info(f"Purchase event organization extraction - custom_field_organisation: '{payload.get('custom_field_organisation')}', "
+                       f"Organisation: '{payload.get('Organisation')}', final organization: '{organization}'")
             
             # Extract date from payload using the checkout_date_field from the webinar
             date_str = payload.get(webinar.checkout_date_field, '')
@@ -456,7 +465,17 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
             first_name = payload.get('member_first_name', '')
             last_name = payload.get('member_last_name', '')
             email = payload.get('member_email', '')
-            organization = ''
+            # Try multiple organization field variations for purchase events too
+            organization = (payload.get('custom_field_organisation') or 
+                          payload.get('Organisation') or 
+                          payload.get('Organization') or 
+                          payload.get('organisation') or 
+                          payload.get('organization') or '')
+            
+            # Debug logging for organization extraction
+            logger.info(f"Bundle purchase organization extraction - custom_field_organisation: '{payload.get('custom_field_organisation')}', "
+                       f"Organisation: '{payload.get('Organisation')}', final organization: '{organization}'")
+            
             date_str = payload.get(bundle.checkout_date_field, '')
         
         # Validate required fields
