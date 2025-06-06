@@ -138,13 +138,27 @@ def create_on_demand_attendee(webinar, first_name, last_name, email, organizatio
         }
     )
     
-    # If attendee existed but was deleted, restore it
-    if not created and attendee.is_deleted:
-        attendee.deleted_at = None
-        attendee.first_name = first_name
-        attendee.last_name = last_name
-        attendee.organization = organization
-        attendee.save()
+    # If attendee already existed, update their details
+    if not created:
+        updated = False
+        if attendee.is_deleted:
+            attendee.deleted_at = None
+            updated = True
+        
+        # Update details if they've changed
+        if attendee.first_name != first_name:
+            attendee.first_name = first_name
+            updated = True
+        if attendee.last_name != last_name:
+            attendee.last_name = last_name
+            updated = True
+        if attendee.organization != organization:
+            attendee.organization = organization
+            updated = True
+        
+        if updated:
+            attendee.save()
+            logger.info(f"Updated existing on-demand attendee {email} with new details")
     
     logger.info(f"{'Created' if created else 'Updated'} on-demand attendee {email} for {webinar.name}")
     return attendee, created
@@ -372,13 +386,27 @@ def process_kajabi_webhook(data, request):
                 }
             )
             
-            # If attendee existed but was deleted, restore it
-            if not created and attendee.is_deleted:
-                attendee.deleted_at = None
-                attendee.first_name = first_name
-                attendee.last_name = last_name
-                attendee.organization = organization
-                attendee.save()
+            # If attendee already existed, update their details
+            if not created:
+                updated = False
+                if attendee.is_deleted:
+                    attendee.deleted_at = None
+                    updated = True
+                
+                # Update details if they've changed
+                if attendee.first_name != first_name:
+                    attendee.first_name = first_name
+                    updated = True
+                if attendee.last_name != last_name:
+                    attendee.last_name = last_name
+                    updated = True
+                if attendee.organization != organization:
+                    attendee.organization = organization
+                    updated = True
+                
+                if updated:
+                    attendee.save()
+                    logger.info(f"Updated existing attendee {email} with new details")
             
             # Try to register attendee in Zoom if webinar has Zoom meeting ID
             if webinar_date.zoom_meeting_id and not attendee.zoom_registrant_id:
@@ -520,13 +548,27 @@ def process_bundle_webhook(bundle, payload, webhook_type, data):
             }
         )
         
-        # If attendee existed but was deleted, restore it
-        if not created and attendee.is_deleted:
-            attendee.deleted_at = None
-            attendee.first_name = first_name
-            attendee.last_name = last_name
-            attendee.organization = organization
-            attendee.save()
+        # If attendee already existed, update their details
+        if not created:
+            updated = False
+            if attendee.is_deleted:
+                attendee.deleted_at = None
+                updated = True
+            
+            # Update details if they've changed
+            if attendee.first_name != first_name:
+                attendee.first_name = first_name
+                updated = True
+            if attendee.last_name != last_name:
+                attendee.last_name = last_name
+                updated = True
+            if attendee.organization != organization:
+                attendee.organization = organization
+                updated = True
+            
+            if updated:
+                attendee.save()
+                logger.info(f"Updated existing bundle attendee {email} with new details")
         
         status = "Created" if created else "Updated"
         return True, f"{status} bundle attendee for {bundle.name} on {bundle_date.date}", attendee.id
